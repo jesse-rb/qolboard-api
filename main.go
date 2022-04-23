@@ -26,7 +26,7 @@ func main() {
 
 	// Setup router
 	r := gin.Default();
-	r.SetTrustedProxies([]string{os.Getenv("DOMAIN")})
+	r.SetTrustedProxies([]string{os.Getenv("SPA_DOMAIN")})
 
 	// Create database connection
 	db := config.ConnectToDatabase()
@@ -41,8 +41,8 @@ func main() {
 	})
 
 	// Define routes
-	r.GET("/artist", api.GetUsers)
-	r.POST("/artist", api.PostUser)
+	r.GET("/user", api.GetUsers)
+	r.POST("/user", api.CreateUser)
 
 	// Listen and serve router
 	err = r.Run()
