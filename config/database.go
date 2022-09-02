@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"qolboard-api/api"
+	"qolboard-api/logger"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -24,7 +25,7 @@ func ConnectToDatabase() *Database {
 	)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		logError.Panic(err)
+		logger.LogError(prefix, err.Error())
 	}
 
 	db.AutoMigrate(&api.User{})
@@ -35,6 +36,6 @@ func ConnectToDatabase() *Database {
 func (db *Database) AutoMigrate(m interface{}) {
 	err := db.Connection.AutoMigrate(&m)
 	if err != nil {
-		logError.Panic(err)
+		logger.LogError(prefix, err.Error())
 	}
 }

@@ -1,7 +1,9 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"qolboard-api/logger"
 
 	"firebase.google.com/go/auth"
 	"github.com/gin-gonic/gin"
@@ -53,9 +55,9 @@ func CreateUser(c *gin.Context) {
         Disabled(false)
 	u, err := firebaseAuth.CreateUser(c, params)
 	if err != nil {
-		logError.Panicf("error creating user: %v\n", err)
+		logger.LogError(prefix, fmt.Sprintf("error creating user: %v", err));
 	}
-	logInfo.Printf("Successfully created user: %v\n", u)
+	logger.LogInfo(prefix, fmt.Sprintf("Successfully created user: %v\n", u))
 
 	// Store user in local DB
 	user := User{Email: input.Email, DisplayName: input.DisplayName, UUID: u.UID}

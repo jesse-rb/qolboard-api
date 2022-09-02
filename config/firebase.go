@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"os"
+	"qolboard-api/logger"
 
 	firebase "firebase.google.com/go"
 	"firebase.google.com/go/auth"
@@ -16,7 +17,7 @@ func FirebaseAuth() *auth.Client {
 	// Get google credentials
 	googleCreds, err := base64.StdEncoding.DecodeString(os.Getenv("GOOGLE_CREDS")) // Decode base64 encoded google creds into byte array
 	if err != nil {
-		logError.Panic("Failed to decode google credentials")
+		logger.LogError(prefix, "Failed to decode google credentials")
 	}
 	
 	// Use google credentials to to access firebase SDK
@@ -24,13 +25,13 @@ func FirebaseAuth() *auth.Client {
 	// opt := option.WithCredentials(googleCredsStruct)
 	app, err := firebase.NewApp(context.Background(), nil, opt)
 	if err != nil {
-		logError.Panic("Failed to load firebase app")
+		logger.LogError(prefix, "Failed to load firebase app")
 	}
 	
 	// Init firebase auth
 	auth, err := app.Auth(context.Background())
 	if err != nil {
-		logError.Panic("Failed to load firebase app auth")
+		logger.LogError(prefix, "Failed to load firebase app auth")
 	}
 	
 	return auth
