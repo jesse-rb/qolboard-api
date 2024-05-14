@@ -33,8 +33,3 @@
     ```
     go run main.go
     ```
-
-**Firebase**
-```
-cat firebase.json | openssl base64 -A
-```

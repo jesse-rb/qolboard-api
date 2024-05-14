@@ -2,9 +2,10 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
-	"qolboard-api/api"
 
+	slogger "github.com/jesse-rb/slogger-go"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -12,6 +13,10 @@ import (
 type Database struct {
 	Connection *gorm.DB
 }
+
+// Declare some loggers
+var infoLogger = slogger.New(os.Stdout, slogger.ANSIBlue, "config", log.Lshortfile+log.Ldate);
+var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "config", log.Lshortfile+log.Ldate);
 
 func ConnectToDatabase() *Database {
 	dsn := fmt.Sprintf(
@@ -24,10 +29,12 @@ func ConnectToDatabase() *Database {
 	)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		logError.Panic(err)
+		errorLogger.Log("ConnectToDatabase", "Error connecting to database", err)
+		panic(1)
 	}
 
-	db.AutoMigrate(&api.User{})
+	// Register auto migrations here:
+	// e.g. db.AutoMigrate(&api.User{})
 
 	return &Database{Connection: db}
 }
@@ -35,6 +42,6 @@ func ConnectToDatabase() *Database {
 func (db *Database) AutoMigrate(m interface{}) {
 	err := db.Connection.AutoMigrate(&m)
 	if err != nil {
-		logError.Panic(err)
+		errorLogger.Log("AutoMigrate", "Error auto migrating Gorm model", err)
 	}
 }
