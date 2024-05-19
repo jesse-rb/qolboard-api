@@ -54,7 +54,6 @@ func Login(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Sorry, somethiong went wrong during login."})
 		return
 	}
-	infoLogger.Log("Login", "response", response)
 
 	var email string = response.User.Email
 	var token string = response.AccessToken
