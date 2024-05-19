@@ -59,9 +59,13 @@ func Signup(data RegisterBodyData) (supabaseRegisterResponse *SupabaseRegisterRe
 func Login(data LoginBodyData) (supabaseLoginResponse *SupabaseLoginResponse, err error) {
 	var requestBody, _ = json.Marshal(data)
 
-	_, response, err := supabase(http.MethodPost, "token?grant_type=password", requestBody)
+	code, response, err := supabase(http.MethodPost, "token?grant_type=password", requestBody)
 	if err != nil {
 		return nil, err
+	}
+	
+	if (code != http.StatusOK) {
+		return nil, fmt.Errorf("incorrect credentials")
 	}
 
 	var supabaseResponse SupabaseLoginResponse

@@ -61,7 +61,13 @@ func Login(c *gin.Context) {
 	var expiresIn int = response.ExpiresIn
 
 	var domain string = os.Getenv("APP_DOMAIN")
-	var secure bool = os.Getenv("GIN_MODE") == "dev"
+	var secure bool = true
+
+	var isDev bool = os.Getenv("GIN_MODE") == "dev"
+	if isDev {
+		secure = false;
+		c.SetSameSite(http.SameSiteLaxMode)
+	}
 	c.SetCookie("qolboard_jwt", token, expiresIn, "/", domain, secure, true)
 
 	c.JSON(http.StatusOK, gin.H{"email": email})
@@ -74,7 +80,13 @@ func Logout(c *gin.Context) {
 	}
 
 	var domain string = os.Getenv("APP_DOMAIN")
-	var secure bool = os.Getenv("GIN_MODE") == "dev"
+	var secure bool = true
+
+	var isDev bool = os.Getenv("GIN_MODE") == "dev"
+	if isDev {
+		secure = false;
+		c.SetSameSite(http.SameSiteLaxMode)
+	}
 	c.SetCookie("qolboard_jwt", "", 0, "/", domain, secure, true) // Expire jwt cookie
 
 	c.JSON(http.StatusOK, gin.H{})

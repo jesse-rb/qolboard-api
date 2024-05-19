@@ -7,6 +7,7 @@ import (
 	auth_controller "qolboard-api/controllers/auth"
 	user_controller "qolboard-api/controllers/user"
 	auth_middleware "qolboard-api/middleware/auth"
+	cors_middleware "qolboard-api/middleware/cors"
 	database_middleware "qolboard-api/middleware/database"
 
 	"github.com/gin-gonic/gin"
@@ -32,9 +33,10 @@ func main() {
 	}
 
 	// Setup router
-	r := gin.Default() ;
-	r.SetTrustedProxies([]string{os.Getenv("APP_DOMAIN")})
-	
+	r := gin.Default();
+
+	r.Use(cors_middleware.Run)
+
 	// Global middleware
 	r.Use(database_middleware.Run)
 
