@@ -3,8 +3,11 @@ package main
 import (
 	"log"
 	"os"
-	test_controller "qolboard-api/api/test"
-	"qolboard-api/config"
+
+	auth_controller "qolboard-api/controllers/auth"
+	user_controller "qolboard-api/controllers/user"
+	auth_middleware "qolboard-api/middleware/auth"
+	database_middleware "qolboard-api/middleware/database"
 
 	"github.com/gin-gonic/gin"
 	slogger "github.com/jesse-rb/slogger-go"
@@ -16,7 +19,7 @@ func init() {
 }
 
 // Declare some loggers
-var infoLogger = slogger.New(os.Stdout, slogger.ANSIBlue, "main", log.Lshortfile+log.Ldate);
+var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "main", log.Lshortfile+log.Ldate);
 var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "main", log.Lshortfile+log.Ldate);
 
 func main() {
@@ -29,19 +32,31 @@ func main() {
 	}
 
 	// Setup router
-	r := gin.Default();
-	r.SetTrustedProxies([]string{os.Getenv("SPA_DOMAIN")})
-
-	// Create database connection
-	db := config.ConnectToDatabase()
+	r := gin.Default() ;
+	r.SetTrustedProxies([]string{os.Getenv("APP_DOMAIN")})
 	
-	// Gin middleware for all requests
-	r.Use(func(c *gin.Context) {
-		c.Set("db", db.Connection)
-	})
+	// Global middleware
+	r.Use(database_middleware.Run)
 
-	// Define routes
-	r.GET("/test", test_controller.Index)
+	// Define unauthenticated routes routes
+	// Auth routes
+	rAuth := r.Group("/auth")
+	{
+		rAuth.POST("/register", auth_controller.Register)
+		rAuth.POST("/login", auth_controller.Login)
+	}
+
+	// Define authenticated routes
+	// User routes
+	rUser := r.Group("/user")
+	{
+		// User middleware
+		rUser.Use(auth_middleware.Run)
+
+		rUser.GET("", user_controller.Get)
+		rUser.POST("logout", auth_controller.Logout)
+	}
+
 
 	// Listen and serve router
 	err = r.Run()

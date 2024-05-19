@@ -4,6 +4,8 @@ go 1.20
 
 require (
 	github.com/gin-gonic/gin v1.7.7
+	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/jesse-rb/slogger-go v1.0.1
 	github.com/joho/godotenv v1.4.0
 	gorm.io/driver/postgres v1.2.3
 	gorm.io/gorm v1.22.5
@@ -24,7 +26,6 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/jackc/pgtype v1.9.0 // indirect
 	github.com/jackc/pgx/v4 v4.14.0 // indirect
-	github.com/jesse-rb/slogger-go v1.0.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.4 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect

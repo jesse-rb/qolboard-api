@@ -1,4 +1,4 @@
-package config
+package database_config
 
 import (
 	"fmt"
@@ -10,13 +10,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// Declare some loggers
+var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "database_config", log.Lshortfile+log.Ldate);
+var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "database_config", log.Lshortfile+log.Ldate);
+
 type Database struct {
 	Connection *gorm.DB
 }
-
-// Declare some loggers
-var infoLogger = slogger.New(os.Stdout, slogger.ANSIBlue, "config", log.Lshortfile+log.Ldate);
-var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "config", log.Lshortfile+log.Ldate);
 
 func ConnectToDatabase() *Database {
 	dsn := fmt.Sprintf(
