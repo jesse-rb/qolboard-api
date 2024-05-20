@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	database_config "qolboard-api/config/database"
 	auth_controller "qolboard-api/controllers/auth"
 	user_controller "qolboard-api/controllers/user"
 	auth_middleware "qolboard-api/middleware/auth"
@@ -16,7 +17,13 @@ import (
 )
 
 func init() {
-	
+	err := godotenv.Load()
+	if err != nil {
+		errorLogger.Log("main", "Error loading .env file", err)
+		os.Exit(1)
+	}
+
+	database_config.ConnectToDatabase()
 }
 
 // Declare some loggers
@@ -24,14 +31,6 @@ var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "main", log.Lshortfil
 var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "main", log.Lshortfile+log.Ldate);
 
 func main() {
-	var err error;
-
-	err = godotenv.Load()
-	if err != nil {
-		errorLogger.Log("main", "Error loading .env file", err)
-		os.Exit(1)
-	}
-
 	// Setup router
 	r := gin.Default();
 
@@ -61,7 +60,7 @@ func main() {
 
 
 	// Listen and serve router
-	err = r.Run()
+	err := r.Run()
 	infoLogger.Log("main", "Running server", 0)
 	if err != nil {
 		errorLogger.Log("main", "Error running server", err)

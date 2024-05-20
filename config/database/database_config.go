@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	canvas_model "qolboard-api/models/canvas"
 
 	slogger "github.com/jesse-rb/slogger-go"
 	"gorm.io/driver/postgres"
@@ -29,12 +30,13 @@ func ConnectToDatabase() *Database {
 	)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		errorLogger.Log("ConnectToDatabase", "Error connecting to database", err)
+		errorLogger.Log("ConnectToDatabase", "Error connecting to database", err.Error())
 		panic(1)
 	}
 
 	// Register auto migrations here:
-	// e.g. db.AutoMigrate(&api.User{})
+	// e.g. db.AutoMigrate(&canvas_model.Canvas{})
+	db.AutoMigrate(&canvas_model.Canvas{})
 
 	return &Database{Connection: db}
 }
