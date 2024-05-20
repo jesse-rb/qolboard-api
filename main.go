@@ -20,7 +20,6 @@ func init() {
 	err := godotenv.Load()
 	if err != nil {
 		errorLogger.Log("main", "Error loading .env file", err)
-		os.Exit(1)
 	}
 
 	database_config.ConnectToDatabase()
