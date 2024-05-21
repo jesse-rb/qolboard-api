@@ -9,7 +9,6 @@ import (
 	user_controller "qolboard-api/controllers/user"
 	auth_middleware "qolboard-api/middleware/auth"
 	cors_middleware "qolboard-api/middleware/cors"
-	database_middleware "qolboard-api/middleware/database"
 
 	"github.com/gin-gonic/gin"
 	slogger "github.com/jesse-rb/slogger-go"
@@ -33,10 +32,8 @@ func main() {
 	// Setup router
 	r := gin.Default();
 
-	r.Use(cors_middleware.Run)
-
 	// Global middleware
-	r.Use(database_middleware.Run)
+	r.Use(cors_middleware.Run)	
 
 	// Define unauthenticated routes routes
 	// Auth routes
