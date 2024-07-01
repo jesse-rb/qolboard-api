@@ -6,6 +6,7 @@ import (
 
 	database_config "qolboard-api/config/database"
 	auth_controller "qolboard-api/controllers/auth"
+	"qolboard-api/controllers/canvas_controller"
 	user_controller "qolboard-api/controllers/user"
 	auth_middleware "qolboard-api/middleware/auth"
 	cors_middleware "qolboard-api/middleware/cors"
@@ -52,6 +53,11 @@ func main() {
 
 		rUser.GET("", user_controller.Get)
 		rUser.POST("logout", auth_controller.Logout)
+
+		// User Canvas routes
+		rUser.GET("/canvas", canvas_controller.Index)
+		rUser.GET("/canvas/:id", canvas_controller.Get)
+		rUser.POST("/canvas", canvas_controller.Save)
 	}
 
 
