@@ -45,7 +45,11 @@ type PieceSettings struct {
 }
 
 type PiecesManager struct {
-	Pieces []*PieceData `json:"pieces"`
+	Pieces 		[]*PieceData `json:"pieces"`
+	LeftMost 	*int `json:"leftMost" binding:"required"`
+	RightMost 	*int `json:"rightMost" binding:"required"`
+	TopMost		*int `json:"topMost" binding:"required"`
+	BottomMost 	*int `json:"bottomMost" binding:"required"`
 }
 
 type PieceData struct {
@@ -53,10 +57,10 @@ type PieceData struct {
 	Path 		string `json:"path" binding:"required"`
 	Move 		DOMMatrixs `json:"move" binding:"required"`
 	Pan 		DOMMatrixs `json:"pan" binding:"required"`
-	LeftMost 	DOMMatrixs `json:"leftMost" binding:"required"`
-	RightMost 	DOMMatrixs `json:"rightMost" binding:"required"`
-	TopMost		DOMMatrixs `json:"topMost" binding:"required"`
-	BottomMost 	DOMMatrixs `json:"bottomMost" binding:"required"`
+	LeftMost 	*int `json:"leftMost" binding:"required"`
+	RightMost 	*int `json:"rightMost" binding:"required"`
+	TopMost		*int `json:"topMost" binding:"required"`
+	BottomMost 	*int `json:"bottomMost" binding:"required"`
 }
 
 type DOMMatrixs struct {
