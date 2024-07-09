@@ -58,6 +58,7 @@ func main() {
 		rUser.GET("/canvas", canvas_controller.Index)
 		rUser.GET("/canvas/:id", canvas_controller.Get)
 		rUser.POST("/canvas", canvas_controller.Save)
+		rUser.POST("/canvas/:id", canvas_controller.Save)
 	}
 
 

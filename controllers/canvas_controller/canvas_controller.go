@@ -8,6 +8,7 @@ import (
 	"os"
 	database_config "qolboard-api/config/database"
 	canvas_model "qolboard-api/models/canvas"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	slogger "github.com/jesse-rb/slogger-go"
@@ -47,6 +48,16 @@ func Save(c *gin.Context) {
 
 	email := c.GetString("email")
 
+	var paramId string = c.Param("id");
+	var id uint64 = 0;
+	var err error = nil;
+	if paramId != "" {
+		id, err = strconv.ParseUint(paramId, 10, 64);
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{"error": "Canvas id must be an integer"})
+		}
+	}
+
 	var canvasData canvas_model.CanvasData
 	if err := c.ShouldBindJSON(&canvasData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -61,7 +72,13 @@ func Save(c *gin.Context) {
 	
 	var canvas canvas_model.Canvas = canvas_model.Canvas{UserEmail: email, CanvasData: canvasDataJson}
 
-	result := db.Connection.Create(&canvas)
+	if id > 0 {
+		// Update
+		canvas.ID = id
+	}
+
+	result := db.Connection.Save(&canvas)
+
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error saving canvas data"})
 

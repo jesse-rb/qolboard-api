@@ -1,8 +1,9 @@
 package canvas_model
 
 import (
+	model "qolboard-api/models"
+
 	"gorm.io/datatypes"
-	"gorm.io/gorm"
 )
 
 const (
@@ -13,14 +14,14 @@ const (
 )
 
 type Canvas struct {
-	gorm.Model
-	UserEmail string
-	CanvasData datatypes.JSON
+	model.Model
+	UserEmail string `json:"userEmail"`
+	CanvasData datatypes.JSON `json:"canvasData"`
 }
 
 type SerializedCanvas struct {} // TODO...
 
-type CanvasData struct {	
+type CanvasData struct {
 	Width			*int	`json:"width" binding:"required"`
 	Height			*int	`json:"height" binding:"required"`
 	ActiveMode		string	`json:"activeMode" binding:"required"`
