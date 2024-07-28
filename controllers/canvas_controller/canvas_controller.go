@@ -20,33 +20,37 @@ var errorLogger slogger.Logger = *slogger.New(os.Stderr, slogger.ANSIRed, "canva
 func Index(c *gin.Context) {
 	db := database_config.GetDatabase();
 
-	email, _ := c.Get("email")
+	email := c.GetString("email");
 
-	var Canvases []*canvas_model.Canvas
+	var canvases []*canvas_model.Canvas;
 
-	db.Connection.Where("user_email = ?", email).Find(&Canvases)
+	db.Connection.
+		Scopes(canvas_model.BelongsToUser(email)).
+		Find(&canvases);
 
-	c.JSON(http.StatusOK, Canvases)
+	c.JSON(http.StatusOK, canvases);
 }
 
 func Get(c *gin.Context) {
 	db := database_config.GetDatabase();
 
-	email, _ := c.Get("email")
+	email := c.GetString("email");
 
-	var id string = c.Param("id")
+	var id string = c.Param("id");
 
-	var Canvas canvas_model.Canvas
+	var canvas canvas_model.Canvas;
 
-	db.Connection.Where("user_email = ?", email).First(&Canvas, id)
+	db.Connection.
+		Scopes(canvas_model.BelongsToUser(email)).
+		First(&canvas, id);
 
-	c.JSON(http.StatusOK, Canvas)
+	c.JSON(http.StatusOK, canvas);
 }
 
 func Save(c *gin.Context) {
 	db := database_config.GetDatabase();
 
-	email := c.GetString("email")
+	email := c.GetString("email");
 
 	var paramId string = c.Param("id");
 	var id uint64 = 0;
@@ -54,39 +58,78 @@ func Save(c *gin.Context) {
 	if paramId != "" {
 		id, err = strconv.ParseUint(paramId, 10, 64);
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{"error": "Canvas id must be an integer"})
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{"error": "Canvas id must be an integer"});
 		}
 	}
 
 	var canvasData canvas_model.CanvasData
 	if err := c.ShouldBindJSON(&canvasData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()});
 		return;
 	}
 
 	canvasDataJson, err := json.Marshal(canvasData)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()});
+		return;
 	}
 	
-	var canvas canvas_model.Canvas = canvas_model.Canvas{UserEmail: email, CanvasData: canvasDataJson}
+	var canvas canvas_model.Canvas = canvas_model.Canvas{UserEmail: email, CanvasData: canvasDataJson};
 
 	if id > 0 {
 		// Update
-		canvas.ID = id
+		canvas.ID = id;
 	}
 
-	result := db.Connection.Save(&canvas)
+	result := db.Connection.
+		Scopes(canvas_model.BelongsToUser(email)).
+		Save(&canvas);
 
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error saving canvas data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error saving canvas data"});
 
-		errorLogger.Log("Save", "Error saving canvas data", result)
+		errorLogger.Log("Save", "Error saving canvas data", result);
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"msg": fmt.Sprintf("Successfully saved canvas with id: %v", canvas.ID),
 		"canvas": canvas,
-	})
+	});
+}
+
+func Delete(c *gin.Context) {
+	db := database_config.GetDatabase();
+
+	email := c.GetString("email");
+
+	var paramId string = c.Param("id");
+	var id uint64 = 0;
+	var err error = nil;
+	if paramId != "" {
+		id, err = strconv.ParseUint(paramId, 10, 64);
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{"error": "Canvas id must be an integer"});
+		}
+	}
+
+	var canvas canvas_model.Canvas;
+
+	canvas.ID = id;
+
+	db.Connection.
+		Scopes(canvas_model.BelongsToUser(email)).
+		First(&canvas, id);
+
+	result := db.Connection.
+		Scopes(canvas_model.BelongsToUser(email)).
+		Delete(&canvas, id);
+
+	if (result.Error != nil) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting canvas"});
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"msg": fmt.Sprintf("Successfully saved canvas with id %v", canvas.ID),
+		"canvas": canvas,
+	});
 }

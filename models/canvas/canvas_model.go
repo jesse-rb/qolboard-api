@@ -4,6 +4,7 @@ import (
 	model "qolboard-api/models"
 
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 const (
@@ -22,8 +23,8 @@ type Canvas struct {
 type SerializedCanvas struct {} // TODO...
 
 type CanvasData struct {
-	Width			*int	`json:"width" binding:"required"`
-	Height			*int	`json:"height" binding:"required"`
+	// Width			*int	`json:"width" binding:"required"`
+	// Height			*int	`json:"height" binding:"required"`
 	ActiveMode		string	`json:"activeMode" binding:"required"`
 	MouseDown		bool	`json:"mouseDown"`
 	MouseX			*int	`json:"mouseX" binding:"required"`
@@ -88,3 +89,9 @@ type DOMMatrixs struct {
     M43	int `json:"m43" binding:"required"`
     M44	int `json:"m44" binding:"required"`
 }
+
+func BelongsToUser(user_email string) func (db *gorm.DB) *gorm.DB {
+	return func (db *gorm.DB) *gorm.DB {
+	  return db.Where("user_email", user_email)
+	}
+  }

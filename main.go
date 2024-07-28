@@ -55,10 +55,11 @@ func main() {
 		rUser.POST("logout", auth_controller.Logout)
 
 		// User Canvas routes
+		rUser.POST("/canvas", canvas_controller.Save)
 		rUser.GET("/canvas", canvas_controller.Index)
 		rUser.GET("/canvas/:id", canvas_controller.Get)
-		rUser.POST("/canvas", canvas_controller.Save)
 		rUser.POST("/canvas/:id", canvas_controller.Save)
+		rUser.DELETE("/canvas/:id", canvas_controller.Delete)
 	}
 
 
