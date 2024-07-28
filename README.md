@@ -2,20 +2,21 @@
 
 ## Getting started with development
 
-**Database**
+**Database & Supabase**
+
+Supabase is used for authentication and a postgresql database setup, though you can feel free to use any postgresql database setup for local development.
 
 *REQUIREMENTS*
-+ You can use this below setup, or feel free to use any postgresql database setup for your development environment
++ Docker (If on macos, linux, or windows/wsl2 [Docker Desktop](https://www.docker.com/products/docker-desktop/) is a convenient way to to install docker and docker-compose binaies)
++ [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started?platform=npx) (uses docker containers to setup a local supabase development environment) can be used conveniently through npx
 
 *STEPS*
-1. Create a development database using the provided `Dockerfile` using the following command in the project root directory
+1. Start the local supabase environment (this will use the exisitng supabase configuration in `supabase` directory generated from the initial `npx supabase init` command) e.g.
+    
     ```
-    docker build -t qolboard-postgres ./
+    npx supabase start
     ```
-2. Ensure the development database is running
-    ```
-    docker run -d --name qolboard-postgres-container -p 5432:5432 qolboard-postgres
-    ```
+2. You can access the local supabase environment dashboard on [localhost:54323](http://localhost:54323)
 
 **Golang**
 
