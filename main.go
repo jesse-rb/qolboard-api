@@ -10,6 +10,8 @@ import (
 	user_controller "qolboard-api/controllers/user"
 	auth_middleware "qolboard-api/middleware/auth"
 	cors_middleware "qolboard-api/middleware/cors"
+	error_middleware "qolboard-api/middleware/error"
+	error_service "qolboard-api/services/error"
 
 	"github.com/gin-gonic/gin"
 	slogger "github.com/jesse-rb/slogger-go"
@@ -31,10 +33,13 @@ var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "main", log.Lshortfile
 
 func main() {
 	// Setup router
-	r := gin.Default();
+	r := gin.Default()
+
+	error_service.SetUpValidator()
 
 	// Global middleware
-	r.Use(cors_middleware.Run)	
+	r.Use(cors_middleware.Run)
+	r.Use(error_middleware.Run)
 
 	// Define unauthenticated routes routes
 	// Auth routes
@@ -61,7 +66,6 @@ func main() {
 		rUser.POST("/canvas/:id", canvas_controller.Save)
 		rUser.DELETE("/canvas/:id", canvas_controller.Delete)
 	}
-
 
 	// Listen and serve router
 	err := r.Run()

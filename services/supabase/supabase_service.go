@@ -16,13 +16,13 @@ var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "supabase_service", l
 var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "supabase_service", log.Lshortfile+log.Ldate);
 
 type RegisterBodyData struct {
-	Email string `json:"email" binding:"required"`
+	Email string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 	PasswordConfirmation string `json:"password_confirmation" binding:"required"`
 }
 
 type LoginBodyData struct {
-	Email  string `json:"email" binding:"required"`
+	Email  string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -32,6 +32,8 @@ type User struct {
 
 type SupabaseRegisterResponse struct {
 	Email string `json:"email"`
+	ErrorCode string `json:"error_code"`
+	Msg string `json:"msg"`
 }
 
 type SupabaseLoginResponse struct {
@@ -40,20 +42,23 @@ type SupabaseLoginResponse struct {
 	User User `json:"user"`
 }
 
-func Signup(data RegisterBodyData) (supabaseRegisterResponse *SupabaseRegisterResponse, err error) {
+func Signup(data RegisterBodyData) (code int, supabaseRegisterResponse *SupabaseRegisterResponse, err error) {
 	var requestBody, _ = json.Marshal(data)
-	_, response, err := supabase(http.MethodPost, "signup", requestBody)
+	code, response, err := supabase(http.MethodPost, "signup", requestBody)
+
 	if err != nil {
-		return nil, err
+		return code, nil, err
 	}
+
+	infoLogger.Log("Signup", "received supabase signup response:", string(response))
 
 	var supabaseResponse SupabaseRegisterResponse
 	err = json.Unmarshal(response, &supabaseResponse)
 	if err != nil {
-		return nil, err
+		return code, nil, err
 	}
 	
-	return &supabaseResponse, err
+	return code, &supabaseResponse, err
 }
 
 func Login(data LoginBodyData) (supabaseLoginResponse *SupabaseLoginResponse, err error) {

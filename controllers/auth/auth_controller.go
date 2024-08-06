@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	error_service "qolboard-api/services/error"
 	supabase_service "qolboard-api/services/supabase"
 
 	"github.com/gin-gonic/gin"
@@ -17,26 +18,31 @@ func Register(c *gin.Context) {
 	var data supabase_service.RegisterBodyData
 
 	err := c.ShouldBindJSON(&data)
+
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.Error(err)
 		return
 	}
 
 	if data.Password != data.PasswordConfirmation {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Passwords do not match."})
+		error_service.PublicError(c, "password confirmation does not match", 422, "password_confirmation", data.PasswordConfirmation, "user")
 		return
 	}
 
-	response, err := supabase_service.Signup(data)
+	code, response, err := supabase_service.Signup(data)
 	if err != nil {
-		errorLogger.Log("Register", "Failed supabase signup", err.Error())
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Sorry, somethiong went wrong during sign up."})
+		// errorLogger.Log("Register", "Failed supabase signup", err.Error())
+		error_service.InternalError(c, "Sorry, something went wrong signing up")
+		return
+	}
+	if (code != 200) {
+		error_service.PublicError(c, response.Msg, 422, "password_confirmation", response.ErrorCode, "user")
 		return
 	}
 
 	var email string = response.Email
 
-	c.JSON(http.StatusOK, gin.H{"email": email})
+	c.JSON(code, gin.H{"email": email})
 }
 
 func Login(c *gin.Context) {
