@@ -40,6 +40,8 @@ type SupabaseLoginResponse struct {
 	AccessToken string `json:"access_token"`
 	ExpiresIn int `json:"expires_in"`
 	User User `json:"user"`
+	Error string `json:"error"`
+	ErrorDescription string `json:"error_description"`
 }
 
 func Signup(data RegisterBodyData) (code int, supabaseRegisterResponse *SupabaseRegisterResponse, err error) {
@@ -50,7 +52,8 @@ func Signup(data RegisterBodyData) (code int, supabaseRegisterResponse *Supabase
 		return code, nil, err
 	}
 
-	infoLogger.Log("Signup", "received supabase signup response:", string(response))
+	infoLogger.Log("Signup", "received supabase signup response with code", code)
+	infoLogger.Log("Signup", "received supabase signup response with response", string(response))
 
 	var supabaseResponse SupabaseRegisterResponse
 	err = json.Unmarshal(response, &supabaseResponse)
@@ -61,25 +64,24 @@ func Signup(data RegisterBodyData) (code int, supabaseRegisterResponse *Supabase
 	return code, &supabaseResponse, err
 }
 
-func Login(data LoginBodyData) (supabaseLoginResponse *SupabaseLoginResponse, err error) {
+func Login(data LoginBodyData) (code int, supabaseLoginResponse *SupabaseLoginResponse, err error) {
 	var requestBody, _ = json.Marshal(data)
 
 	code, response, err := supabase(http.MethodPost, "token?grant_type=password", requestBody)
 	if err != nil {
-		return nil, err
+		return code, nil, err
 	}
-	
-	if (code != http.StatusOK) {
-		return nil, fmt.Errorf("incorrect credentials")
-	}
+
+	infoLogger.Log("Signup", "received supabase login with code", code)
+	infoLogger.Log("Signup", "received supabase login with response", string(response))
 
 	var supabaseResponse SupabaseLoginResponse
 	err = json.Unmarshal(response, &supabaseResponse)
 	if err != nil {
-		return nil, err
+		return code, nil, err
 	}
 
-	return &supabaseResponse, nil
+	return code, &supabaseResponse, nil
 }
 
 func Logout() (err error) {

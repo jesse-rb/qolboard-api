@@ -20,7 +20,7 @@ func Register(c *gin.Context) {
 	err := c.ShouldBindJSON(&data)
 
 	if err != nil {
-		c.Error(err)
+		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
 
@@ -32,10 +32,10 @@ func Register(c *gin.Context) {
 	code, response, err := supabase_service.Signup(data)
 	if err != nil {
 		// errorLogger.Log("Register", "Failed supabase signup", err.Error())
-		error_service.InternalError(c, "Sorry, something went wrong signing up")
+		error_service.InternalError(c, err.Error())
 		return
 	}
-	if (code != 200) {
+	if code != 200 {
 		error_service.PublicError(c, response.Msg, 422, "password_confirmation", response.ErrorCode, "user")
 		return
 	}
@@ -50,14 +50,17 @@ func Login(c *gin.Context) {
 
 	err := c.ShouldBindJSON(&data)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
 
-	response, err := supabase_service.Login(data)
+	code, response, err := supabase_service.Login(data)
 	if err != nil {
-		errorLogger.Log("Login", "Failed supabase login", err.Error())
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Sorry, somethiong went wrong during login."})
+		error_service.InternalError(c, err.Error())
+		return
+	}
+	if code != 200 {
+		error_service.PublicError(c, response.ErrorDescription, 401, "", "", "credentials")
 		return
 	}
 
