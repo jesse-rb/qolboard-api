@@ -72,10 +72,6 @@ func HandleGinError(err gin.Error) (code int, formatted []*Error) {
 
 	infoLogger.Log("HandleGinError", "Handling gin error", gin.H{
 		"error": err.Error(),
-		"error_type_any": err.IsType(gin.ErrorTypeAny),
-		"error_type_public": err.IsType(gin.ErrorTypePublic),
-		"error_type_private": err.IsType(gin.ErrorTypePrivate),
-		"error_type_validation": isValidationError(err),
 	})
 
 	if isValidationError(err) {

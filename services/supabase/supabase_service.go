@@ -44,16 +44,20 @@ type SupabaseLoginResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
+type SupabaseLogoutResponse struct {
+	ErrorCode string `json:"error_code"`
+	Msg string `json:"msg"`
+}
+
 func Signup(data RegisterBodyData) (code int, supabaseRegisterResponse *SupabaseRegisterResponse, err error) {
 	var requestBody, _ = json.Marshal(data)
-	code, response, err := supabase(http.MethodPost, "signup", requestBody)
+	code, response, err := supabase(http.MethodPost, "signup", requestBody, "")
 
 	if err != nil {
 		return code, nil, err
 	}
 
 	infoLogger.Log("Signup", "received supabase signup response with code", code)
-	infoLogger.Log("Signup", "received supabase signup response with response", string(response))
 
 	var supabaseResponse SupabaseRegisterResponse
 	err = json.Unmarshal(response, &supabaseResponse)
@@ -67,13 +71,12 @@ func Signup(data RegisterBodyData) (code int, supabaseRegisterResponse *Supabase
 func Login(data LoginBodyData) (code int, supabaseLoginResponse *SupabaseLoginResponse, err error) {
 	var requestBody, _ = json.Marshal(data)
 
-	code, response, err := supabase(http.MethodPost, "token?grant_type=password", requestBody)
+	code, response, err := supabase(http.MethodPost, "token?grant_type=password", requestBody, "")
 	if err != nil {
 		return code, nil, err
 	}
 
-	infoLogger.Log("Signup", "received supabase login with code", code)
-	infoLogger.Log("Signup", "received supabase login with response", string(response))
+	infoLogger.Log("Login", "received supabase login with code", code)
 
 	var supabaseResponse SupabaseLoginResponse
 	err = json.Unmarshal(response, &supabaseResponse)
@@ -84,17 +87,23 @@ func Login(data LoginBodyData) (code int, supabaseLoginResponse *SupabaseLoginRe
 	return code, &supabaseResponse, nil
 }
 
-func Logout() (err error) {
-	_, _, err = supabase(http.MethodPost, "logout", nil)
-	return err
+func Logout(token string) (code int, err error) {
+	code, response, err := supabase(http.MethodPost, "logout", nil, token)
+	if err != nil {
+		return code, err
+	}
+
+	infoLogger.Log("Logout", "received supabase logout with code", code)
+
+	return code, err
 }
 
 func ForgotPassword() (err error) {
-	_, _, err = supabase(http.MethodPost, "recover", nil)
+	_, _, err = supabase(http.MethodPost, "recover", nil, "")
 	return err
 }
 
-func supabase(method string, path string, bodyData []byte) (code int, responseBodyBytes []byte, err error) {
+func supabase(method string, path string, bodyData []byte, token string) (code int, responseBodyBytes []byte, err error) {
 	var host string = os.Getenv("SUPABASE_HOST")
 	var url string = fmt.Sprintf("%s/%s", host, path);
 	var apiKey string = os.Getenv("SUPABASE_ANON_KEY")
@@ -105,6 +114,9 @@ func supabase(method string, path string, bodyData []byte) (code int, responseBo
 		return 0, nil, err
 	}
 
+	if token != "" {
+		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
     request.Header.Set("apikey", apiKey)
     request.Header.Set("Content-Type", "application/json")
 

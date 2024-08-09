@@ -82,9 +82,14 @@ func Login(c *gin.Context) {
 }
 
 func Logout(c *gin.Context) {
-	err := supabase_service.Logout()
+	code, err := supabase_service.Logout(c.GetString("token"))
 	if (err != nil) {
-		errorLogger.Log("Logout", "Failed supabase logout", err.Error())
+		error_service.InternalError(c, err.Error())
+		return
+	}
+	if code < 200 && code >= 300 {
+		error_service.PublicError(c, "Could not logout", 401, "", "", "")
+		return
 	}
 
 	var domain string = os.Getenv("APP_DOMAIN")

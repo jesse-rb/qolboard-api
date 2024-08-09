@@ -8,6 +8,7 @@ import (
 	"os"
 	database_config "qolboard-api/config/database"
 	canvas_model "qolboard-api/models/canvas"
+	error_service "qolboard-api/services/error"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -58,19 +59,20 @@ func Save(c *gin.Context) {
 	if paramId != "" {
 		id, err = strconv.ParseUint(paramId, 10, 64);
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{"error": "Canvas id must be an integer"});
+			error_service.PublicError(c, "Canvas id must be an integer", http.StatusUnprocessableEntity, "canvas_id", paramId, "canvas")
+			return
 		}
 	}
 
 	var canvasData canvas_model.CanvasData
 	if err := c.ShouldBindJSON(&canvasData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()});
-		return;
+		c.Error(err).SetType(gin.ErrorTypeBind)
+		return
 	}
 
 	canvasDataJson, err := json.Marshal(canvasData)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()});
+		error_service.InternalError(c, err.Error())
 		return;
 	}
 	
@@ -86,9 +88,8 @@ func Save(c *gin.Context) {
 		Save(&canvas);
 
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error saving canvas data"});
-
-		errorLogger.Log("Save", "Error saving canvas data", result);
+		error_service.InternalError(c, result.Error.Error())
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -108,7 +109,8 @@ func Delete(c *gin.Context) {
 	if paramId != "" {
 		id, err = strconv.ParseUint(paramId, 10, 64);
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{"error": "Canvas id must be an integer"});
+			error_service.PublicError(c, "Canvas id must be an integer", http.StatusUnprocessableEntity, "canvas_id", paramId, "canvas")
+			return
 		}
 	}
 
@@ -125,7 +127,8 @@ func Delete(c *gin.Context) {
 		Delete(&canvas, id);
 
 	if (result.Error != nil) {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting canvas"});
+		error_service.InternalError(c, result.Error.Error())
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -68,5 +68,6 @@ func Run(c *gin.Context) {
 	infoLogger.Log("AuthMiddleware", "Received request from", email)
 
 	c.Set("email", email)
+	c.Set("token", token)
 	c.Next()
 }
