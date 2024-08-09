@@ -16,13 +16,13 @@ var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "supabase_service", l
 var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "supabase_service", log.Lshortfile+log.Ldate);
 
 type RegisterBodyData struct {
-	Email string `json:"email" binding:"required"`
+	Email string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 	PasswordConfirmation string `json:"password_confirmation" binding:"required"`
 }
 
 type LoginBodyData struct {
-	Email  string `json:"email" binding:"required"`
+	Email  string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -32,62 +32,78 @@ type User struct {
 
 type SupabaseRegisterResponse struct {
 	Email string `json:"email"`
+	ErrorCode string `json:"error_code"`
+	Msg string `json:"msg"`
 }
 
 type SupabaseLoginResponse struct {
 	AccessToken string `json:"access_token"`
 	ExpiresIn int `json:"expires_in"`
 	User User `json:"user"`
+	Error string `json:"error"`
+	ErrorDescription string `json:"error_description"`
 }
 
-func Signup(data RegisterBodyData) (supabaseRegisterResponse *SupabaseRegisterResponse, err error) {
+type SupabaseLogoutResponse struct {
+	ErrorCode string `json:"error_code"`
+	Msg string `json:"msg"`
+}
+
+func Signup(data RegisterBodyData) (code int, supabaseRegisterResponse *SupabaseRegisterResponse, err error) {
 	var requestBody, _ = json.Marshal(data)
-	_, response, err := supabase(http.MethodPost, "signup", requestBody)
+	code, response, err := supabase(http.MethodPost, "signup", requestBody, "")
+
 	if err != nil {
-		return nil, err
+		return code, nil, err
 	}
+
+	infoLogger.Log("Signup", "received supabase signup response with code", code)
 
 	var supabaseResponse SupabaseRegisterResponse
 	err = json.Unmarshal(response, &supabaseResponse)
 	if err != nil {
-		return nil, err
+		return code, nil, err
 	}
 	
-	return &supabaseResponse, err
+	return code, &supabaseResponse, err
 }
 
-func Login(data LoginBodyData) (supabaseLoginResponse *SupabaseLoginResponse, err error) {
+func Login(data LoginBodyData) (code int, supabaseLoginResponse *SupabaseLoginResponse, err error) {
 	var requestBody, _ = json.Marshal(data)
 
-	code, response, err := supabase(http.MethodPost, "token?grant_type=password", requestBody)
+	code, response, err := supabase(http.MethodPost, "token?grant_type=password", requestBody, "")
 	if err != nil {
-		return nil, err
+		return code, nil, err
 	}
-	
-	if (code != http.StatusOK) {
-		return nil, fmt.Errorf("incorrect credentials")
-	}
+
+	infoLogger.Log("Login", "received supabase login with code", code)
 
 	var supabaseResponse SupabaseLoginResponse
 	err = json.Unmarshal(response, &supabaseResponse)
 	if err != nil {
-		return nil, err
+		return code, nil, err
 	}
 
-	return &supabaseResponse, nil
+	return code, &supabaseResponse, nil
 }
 
-func Logout() (err error) {
-	_, _, err = supabase(http.MethodPost, "logout", nil)
-	return err
+func Logout(token string) (code int, err error) {
+	code, response, err := supabase(http.MethodPost, "logout", nil, token)
+	if err != nil {
+		return code, err
+	}
+
+	infoLogger.Log("Logout", "received supabase logout with code", code)
+
+	return code, err
 }
 
 func ForgotPassword() (err error) {
-	_, _, err = supabase(http.MethodPost, "recover", nil)
+	_, _, err = supabase(http.MethodPost, "recover", nil, "")
 	return err
 }
 
-func supabase(method string, path string, bodyData []byte) (code int, responseBodyBytes []byte, err error) {
+func supabase(method string, path string, bodyData []byte, token string) (code int, responseBodyBytes []byte, err error) {
 	var host string = os.Getenv("SUPABASE_HOST")
 	var url string = fmt.Sprintf("%s/%s", host, path);
 	var apiKey string = os.Getenv("SUPABASE_ANON_KEY")
@@ -98,6 +114,9 @@ func supabase(method string, path string, bodyData []byte) (code int, responseBo
 		return 0, nil, err
 	}
 
+	if token != "" {
+		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
     request.Header.Set("apikey", apiKey)
     request.Header.Set("Content-Type", "application/json")
 
