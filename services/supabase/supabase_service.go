@@ -88,7 +88,7 @@ func Login(data LoginBodyData) (code int, supabaseLoginResponse *SupabaseLoginRe
 }
 
 func Logout(token string) (code int, err error) {
-	code, response, err := supabase(http.MethodPost, "logout", nil, token)
+	code, _, err = supabase(http.MethodPost, "logout", nil, token)
 	if err != nil {
 		return code, err
 	}
