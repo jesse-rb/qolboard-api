@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	auth_service "qolboard-api/services/auth"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -46,12 +49,26 @@ func parseJWT(token string) (email string, err error) {
 
 // Authenticate middleware
 func Run(c *gin.Context) {
-	token, err := c.Cookie("qolboard_jwt")
-	
-	if (err != nil) {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
+	var token string = ""
+
+	var query url.Values = c.Request.URL.Query()
+	var isReturnFromEmailVerification bool = query.Get("type") == "signup"
+
+	// Get token either from:
+	if (isReturnFromEmailVerification) {
+		// Return from verifying email: access_token is in query params
+		token = query.Get("access_token")
+	} else {
+		// Check token cookie for already logged in user
+		var err error = nil;
+		token, err = c.Cookie("qolboard_jwt")
+		
+		if (err != nil) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
 	}
+	
 	if (token == "") {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
@@ -63,6 +80,17 @@ func Run(c *gin.Context) {
 		infoLogger.Log("AuthMiddleware", "Error parsing token", err)
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
+	}
+
+	if (isReturnFromEmailVerification) {
+		// If returning from email verification
+		var expiresInStr string = query.Get("expires_at")
+		expiresIn, err := strconv.Atoi(expiresInStr);
+		if (err != nil) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+		auth_service.SetAuthCookie(c, token, expiresIn)
 	}
 
 	infoLogger.Log("AuthMiddleware", "Received request from", email)

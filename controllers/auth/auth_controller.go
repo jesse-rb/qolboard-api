@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	supabase_service "qolboard-api/services/supabase"
 
@@ -31,7 +32,6 @@ func Register(c *gin.Context) {
 
 	code, response, err := supabase_service.Signup(data)
 	if err != nil {
-		// errorLogger.Log("Register", "Failed supabase signup", err.Error())
 		error_service.InternalError(c, err.Error())
 		return
 	}
@@ -68,15 +68,7 @@ func Login(c *gin.Context) {
 	var token string = response.AccessToken
 	var expiresIn int = response.ExpiresIn
 
-	var domain string = os.Getenv("APP_DOMAIN")
-	var secure bool = true
-
-	var isDev bool = os.Getenv("GIN_MODE") == "dev"
-	if isDev {
-		secure = false;
-		c.SetSameSite(http.SameSiteLaxMode)
-	}
-	c.SetCookie("qolboard_jwt", token, expiresIn, "/", domain, secure, true)
+	auth_service.SetAuthCookie(c, token, expiresIn)
 
 	c.JSON(http.StatusOK, gin.H{"email": email})
 }
@@ -92,15 +84,7 @@ func Logout(c *gin.Context) {
 		return
 	}
 
-	var domain string = os.Getenv("APP_DOMAIN")
-	var secure bool = true
-
-	var isDev bool = os.Getenv("GIN_MODE") == "dev"
-	if isDev {
-		secure = false;
-		c.SetSameSite(http.SameSiteLaxMode)
-	}
-	c.SetCookie("qolboard_jwt", "", 0, "/", domain, secure, true) // Expire jwt cookie
+	auth_service.ExpireAuthCookie(c)
 
 	c.JSON(http.StatusOK, gin.H{})
 }
