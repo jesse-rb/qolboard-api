@@ -20,7 +20,11 @@ The local supabase postgresql database setup is not required but is convenient, 
 
     Note the output of the above command to find `SUPABASE_...` and `DATABASE_...` values to environment variables (see `.env.example`) that need to be set in your local `.env` file (these will be needed if you would like the app to interact with the local supabase environment)
 
-2. You can access the local supabase environment dashboard on [localhost:54323](http://localhost:54323)
+2. You can access the local supabase environment dashboard on [localhost:54323](http://localhost:54323). run `npx supabase status` for a reminder of local supabase serviecs ports and secrets
+
+easy local testing supabase links:
++ [supabase web dashboard](http://127.0.0.1:54323)
++ [mock email service (Inbucket)](http://127.0.0.1:54324)
 
 **Golang**
 
