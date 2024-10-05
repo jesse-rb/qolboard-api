@@ -65,6 +65,30 @@ func SetToken(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"email": email})
 }
 
+func ResendVerificationEmail(c *gin.Context) {
+	var data supabase_service.ResendEmailVerificationBodyData
+
+	err := c.ShouldBindJSON(&data)
+	if err != nil {
+		c.Error(err).SetType(gin.ErrorTypeBind)
+		return
+	}
+
+	// TODO: verify we have an unverified user for this email
+
+	code, err := supabase_service.ResendEmailVerification(data.Email)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+	if code != 200 {
+		error_service.PublicError(c, "", code, "", "", "credentials")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"email": data.Email})
+}
+
 func Login(c *gin.Context) {
 	var data supabase_service.LoginBodyData
 

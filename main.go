@@ -48,6 +48,7 @@ func main() {
 		rAuth.POST("/register", auth_controller.Register)
 		rAuth.POST("/login", auth_controller.Login)
 		rAuth.POST("/set_token", auth_controller.SetToken)
+		rAuth.POST("/resend_verification_email", auth_controller.ResendVerificationEmail)
 	}
 
 	// Define authenticated routes

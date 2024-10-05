@@ -31,6 +31,15 @@ type SetTokenBodyData struct {
 	ExpiresIn int `json:"expires_in" binding:"required"`
 }
 
+type ResendEmailVerificationBodyData struct {
+	Email string `json:"email" binding:"email,required"`
+}
+
+type ResendBodyData struct {
+	Type string `json:"type" binding:"required"`
+	Email string `json:"email" binding:"email,required"`
+}
+
 type User struct {
 	Email string `json:"email"`
 }
@@ -106,6 +115,21 @@ func Logout(token string) (code int, err error) {
 func ForgotPassword() (err error) {
 	_, _, err = supabase(http.MethodPost, "recover", nil, "")
 	return err
+}
+
+func ResendEmailVerification(email string) (int, error) {
+	var data ResendBodyData = ResendBodyData{
+		Type: "signup",
+		Email: email,
+	}
+	var requestBody, _ = json.Marshal(data)
+
+	code, _, err := supabase(http.MethodPost, "resend", requestBody, "")
+	if err != nil {
+		return code, err
+	}
+
+	return code, err
 }
 
 func supabase(method string, path string, bodyData []byte, token string) (code int, responseBodyBytes []byte, err error) {
