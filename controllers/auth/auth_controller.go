@@ -45,6 +45,26 @@ func Register(c *gin.Context) {
 	c.JSON(code, gin.H{"email": email})
 }
 
+func SetToken(c *gin.Context) {
+	var data supabase_service.SetTokenBodyData
+
+	err := c.ShouldBindJSON(&data)
+	if err != nil {
+		c.Error(err).SetType(gin.ErrorTypeBind)
+		return
+	}
+
+	email, err := auth_service.ParseJWT(data.Token)
+
+	if (err != nil) {
+		error_service.PublicError(c, "Invalid token", 401, "token", "", "")
+		return
+	}
+
+	auth_service.SetAuthCookie(c, data.Token, data.ExpiresIn)
+	c.JSON(http.StatusOK, gin.H{"email": email})
+}
+
 func Login(c *gin.Context) {
 	var data supabase_service.LoginBodyData
 

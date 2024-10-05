@@ -26,6 +26,11 @@ type LoginBodyData struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type SetTokenBodyData struct {
+	Token string `json:"token" binding:"required"`
+	ExpiresIn int `json:"expires_in" binding:"required"`
+}
+
 type User struct {
 	Email string `json:"email"`
 }
