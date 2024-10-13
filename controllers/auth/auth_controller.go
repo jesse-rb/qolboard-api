@@ -2,10 +2,10 @@ package auth_controller
 
 import (
 	"log"
-	"net/http"
 	"os"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
+	response_service "qolboard-api/services/response"
 	supabase_service "qolboard-api/services/supabase"
 
 	"github.com/gin-gonic/gin"
@@ -36,13 +36,12 @@ func Register(c *gin.Context) {
 		return
 	}
 	if code != 200 {
-		error_service.PublicError(c, response.Msg, 422, "password_confirmation", response.ErrorCode, "user")
-		return
+		error_service.PublicError(c, response.Msg, code, "email", response.ErrorCode, "user")
 	}
 
 	var email string = response.Email
 
-	c.JSON(code, gin.H{"email": email})
+	response_service.SetJSON(c, gin.H{"email": email, "code": response.ErrorCode})
 }
 
 func SetToken(c *gin.Context) {
@@ -62,7 +61,7 @@ func SetToken(c *gin.Context) {
 	}
 
 	auth_service.SetAuthCookie(c, data.Token, data.ExpiresIn)
-	c.JSON(http.StatusOK, gin.H{"email": email})
+	response_service.SetJSON(c, gin.H{"email": email})
 }
 
 func ResendVerificationEmail(c *gin.Context) {
@@ -86,7 +85,7 @@ func ResendVerificationEmail(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"email": data.Email})
+	response_service.SetJSON(c, gin.H{"email": data.Email})
 }
 
 func Login(c *gin.Context) {
@@ -114,7 +113,7 @@ func Login(c *gin.Context) {
 
 	auth_service.SetAuthCookie(c, token, expiresIn)
 
-	c.JSON(http.StatusOK, gin.H{"email": email})
+	response_service.SetJSON(c, gin.H{"email": email})
 }
 
 func Logout(c *gin.Context) {
@@ -129,6 +128,4 @@ func Logout(c *gin.Context) {
 	}
 
 	auth_service.ExpireAuthCookie(c)
-
-	c.JSON(http.StatusOK, gin.H{})
 }

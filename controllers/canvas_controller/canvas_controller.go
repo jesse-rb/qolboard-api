@@ -9,6 +9,7 @@ import (
 	database_config "qolboard-api/config/database"
 	canvas_model "qolboard-api/models/canvas"
 	error_service "qolboard-api/services/error"
+	response_service "qolboard-api/services/response"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -29,7 +30,7 @@ func Index(c *gin.Context) {
 		Scopes(canvas_model.BelongsToUser(email)).
 		Find(&canvases);
 
-	c.JSON(http.StatusOK, canvases);
+	response_service.SetJSON(c, canvases)
 }
 
 func Get(c *gin.Context) {
@@ -45,7 +46,7 @@ func Get(c *gin.Context) {
 		Scopes(canvas_model.BelongsToUser(email)).
 		First(&canvas, id);
 
-	c.JSON(http.StatusOK, canvas);
+	response_service.SetJSON(c, canvas);
 }
 
 func Save(c *gin.Context) {
@@ -92,10 +93,10 @@ func Save(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response_service.SetJSON(c, gin.H{
 		"msg": fmt.Sprintf("Successfully saved canvas with id: %v", canvas.ID),
 		"canvas": canvas,
-	});
+	})
 }
 
 func Delete(c *gin.Context) {
@@ -131,8 +132,8 @@ func Delete(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response_service.SetJSON(c, gin.H{
 		"msg": fmt.Sprintf("Successfully saved canvas with id %v", canvas.ID),
 		"canvas": canvas,
-	});
+	})
 }

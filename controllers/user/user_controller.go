@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	error_service "qolboard-api/services/error"
+	response_service "qolboard-api/services/response"
 
 	"github.com/gin-gonic/gin"
 	slogger "github.com/jesse-rb/slogger-go"
@@ -16,10 +17,10 @@ var errorLogger slogger.Logger = *slogger.New(os.Stderr, slogger.ANSIRed, "user_
 func Get(c *gin.Context) {
 	email, exists := c.Get("email")
 	if (!exists) {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Could not find user"})
+		response_service.SetCode(c, http.StatusUnauthorized)
 		error_service.PublicError(c, "Could not find user", http.StatusUnauthorized, "auth", "", "user")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"email": email});
+	response_service.SetJSON(c, gin.H{"email": email})
 }

@@ -11,6 +11,7 @@ import (
 	auth_middleware "qolboard-api/middleware/auth"
 	cors_middleware "qolboard-api/middleware/cors"
 	error_middleware "qolboard-api/middleware/error"
+	response_middleware "qolboard-api/middleware/response"
 	error_service "qolboard-api/services/error"
 
 	"github.com/gin-gonic/gin"
@@ -38,7 +39,12 @@ func main() {
 	error_service.SetUpValidator()
 
 	// Global middleware
+
+	// Runs before
 	r.Use(cors_middleware.Run)
+
+	// Runs after (define in reverse)
+	r.Use(response_middleware.Run)
 	r.Use(error_middleware.Run)
 
 	// Define unauthenticated routes routes

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	auth_service "qolboard-api/services/auth"
+	error_service "qolboard-api/services/error"
 
 	"github.com/gin-gonic/gin"
 	slogger "github.com/jesse-rb/slogger-go"
@@ -18,12 +19,12 @@ func Run(c *gin.Context) {
 	token, err := c.Cookie("qolboard_jwt")
 	
 	if (err != nil) {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		error_service.PublicError(c, "Unauthorized", http.StatusUnauthorized, "", "", "user")
 		return
 	}
 	
 	if (token == "") {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		error_service.PublicError(c, "Unauthorized", http.StatusUnauthorized, "", "", "user")
 		return
 	}
 
@@ -31,7 +32,7 @@ func Run(c *gin.Context) {
 
 	if (err != nil) {
 		infoLogger.Log("AuthMiddleware", "Error parsing token", err)
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		error_service.PublicError(c, "Unauthorized", http.StatusUnauthorized, "", "", "user")
 		return
 	}
 

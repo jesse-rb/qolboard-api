@@ -2,8 +2,10 @@ package error_middleware
 
 import (
 	"log"
+	"net/http"
 	"os"
 	error_service "qolboard-api/services/error"
+	response_service "qolboard-api/services/response"
 
 	"github.com/gin-gonic/gin"
 	slogger "github.com/jesse-rb/slogger-go"
@@ -48,14 +50,14 @@ func Run(c *gin.Context) {
 	}
 
 	if len(internalServerErrors) > 0 {
-		code = 500
+		response_service.SetCode(c, http.StatusInternalServerError)
 	} else if len(validationErrors) > 0 {
-		code = 422
+		response_service.SetCode(c, http.StatusUnprocessableEntity)
+	} else if len(publicErrors) > 0 {
+		response_service.SetCode(c, code)
 	}
 
-	if (len(errors) > 0) {
-		c.AbortWithStatusJSON(code, gin.H{
-			"errors": errors,
-		})
-	}
+	response_service.MergeJSON(c, gin.H{
+		"errors": errors,
+	})
 }
