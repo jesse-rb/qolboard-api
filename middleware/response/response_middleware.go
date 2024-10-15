@@ -14,12 +14,10 @@ var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "response_middleware",
 
 func Run(c *gin.Context) {
 	c.Next()
+	infoLogger.Log("Run", "Running RESPONSE middleware", nil)
 
 	var code int = response_service.GetCode(c)
 	var response gin.H = response_service.GetJSON(c)
-
-	infoLogger.Log("Run", "code", code)
-	infoLogger.Log("Run", "response", response)
 
 	c.JSON(code, response)
 }

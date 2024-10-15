@@ -20,6 +20,7 @@ var infoLogger slogger.Logger = *slogger.New(os.Stdout, slogger.ANSIGreen, "canv
 var errorLogger slogger.Logger = *slogger.New(os.Stderr, slogger.ANSIRed, "canvas_controller", log.Lshortfile+log.Ldate)
 
 func Index(c *gin.Context) {
+	infoLogger.Log("Index", "Running CANVAS INDEX controller action", nil)
 	db := database_config.GetDatabase();
 
 	email := c.GetString("email");
@@ -30,7 +31,9 @@ func Index(c *gin.Context) {
 		Scopes(canvas_model.BelongsToUser(email)).
 		Find(&canvases);
 
-	response_service.SetJSON(c, canvases)
+	response_service.SetJSON(c, gin.H{
+		"data": canvases,
+	})
 }
 
 func Get(c *gin.Context) {
@@ -133,7 +136,7 @@ func Delete(c *gin.Context) {
 	}
 
 	response_service.SetJSON(c, gin.H{
-		"msg": fmt.Sprintf("Successfully saved canvas with id %v", canvas.ID),
-		"canvas": canvas,
+		"message": fmt.Sprintf("Successfully saved canvas with id %v", canvas.ID),
+		"data": canvas,
 	})
 }

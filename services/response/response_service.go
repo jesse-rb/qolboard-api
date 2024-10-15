@@ -9,8 +9,8 @@ import (
 	slogger "github.com/jesse-rb/slogger-go"
 )
 
-var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "response_middleware", log.Lshortfile+log.Ldate)
-var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "response_middleware", log.Lshortfile+log.Ldate)
+var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "response_service", log.Lshortfile+log.Ldate)
+var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "response_service", log.Lshortfile+log.Ldate)
 
 // Thank you gpt
 func toGinH(data any) gin.H {
@@ -35,14 +35,10 @@ func SetJSON(c *gin.Context, value any) {
 }
 
 func MergeJSON(c *gin.Context, toMerge any) {
-	response, exits := c.Get("response")
+	response := GetJSON(c)
 
-	if !exits {
-		response = toMerge
-	} else {
-		for k, v := range toGinH(toMerge) {
-			response.(gin.H)[k] = v
-		}
+	for k, v := range toGinH(toMerge) {
+		response[k] = v
 	}
 
 	c.Set("response", response)
