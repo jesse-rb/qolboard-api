@@ -20,16 +20,13 @@ var infoLogger slogger.Logger = *slogger.New(os.Stdout, slogger.ANSIGreen, "canv
 var errorLogger slogger.Logger = *slogger.New(os.Stderr, slogger.ANSIRed, "canvas_controller", log.Lshortfile+log.Ldate)
 
 func Index(c *gin.Context) {
-	infoLogger.Log("Index", "Running CANVAS INDEX controller action", nil)
 	db := database_config.GetDatabase();
 
 	email := c.GetString("email");
 
 	var canvases []*canvas_model.Canvas;
 
-	db.Connection.
-		Scopes(canvas_model.BelongsToUser(email)).
-		Find(&canvases);
+	db.Connection.Scopes(canvas_model.BelongsToUser(email)).Find(&canvases);
 
 	response_service.SetJSON(c, gin.H{
 		"data": canvases,
@@ -45,9 +42,7 @@ func Get(c *gin.Context) {
 
 	var canvas canvas_model.Canvas;
 
-	db.Connection.
-		Scopes(canvas_model.BelongsToUser(email)).
-		First(&canvas, id);
+	db.Connection.Scopes(canvas_model.BelongsToUser(email)).First(&canvas, id);
 
 	response_service.SetJSON(c, canvas);
 }

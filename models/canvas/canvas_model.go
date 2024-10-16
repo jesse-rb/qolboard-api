@@ -25,6 +25,7 @@ type SerializedCanvas struct {} // TODO...
 type CanvasData struct {
 	// Width			*int	`json:"width" binding:"required"`
 	// Height			*int	`json:"height" binding:"required"`
+	Name			string	`json:"name" binding:"required"`
 	ActiveMode		string	`json:"activeMode" binding:"required"`
 	MouseDown		bool	`json:"mouseDown"`
 	MouseX			*int	`json:"mouseX" binding:"required"`

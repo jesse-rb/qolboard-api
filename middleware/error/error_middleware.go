@@ -22,7 +22,6 @@ type Error struct {
 
 func Run(c *gin.Context) {
 	c.Next()
-	infoLogger.Log("Run", "Running ERROR middleware", nil)
 	
 	var errors []*error_service.Error = make([]*error_service.Error, 0);
 	var code int = 500;
