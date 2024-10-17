@@ -36,9 +36,9 @@ type CanvasData struct {
 	YPan			*int	`json:"yPan" binding:"required"`
 	BackgroundColor	string	`json:"backgroundColor" binding:"required"`
 	PieceSettings 	*PieceSettings `json:"pieceSettings" binding:"required"`
-	Zoom			*int	`json:"zoom" binding:"required"`
-	ZoomDx			*int	`json:"zoomDx"`
-	ZoomDy			*int	`json:"zoomDy"`
+	Zoom			*float64	`json:"zoom" binding:"required"`
+	ZoomDx			*float64	`json:"zoomDx"`
+	ZoomDy			*float64	`json:"zoomDy"`
 	PiecesManager	PiecesManager `json:"piecesManager" binding:"required"`
 }
 
@@ -49,10 +49,10 @@ type PieceSettings struct {
 
 type PiecesManager struct {
 	Pieces 		[]*PieceData `json:"pieces"`
-	LeftMost 	*int `json:"leftMost" binding:"required"`
-	RightMost 	*int `json:"rightMost" binding:"required"`
-	TopMost		*int `json:"topMost" binding:"required"`
-	BottomMost 	*int `json:"bottomMost" binding:"required"`
+	LeftMost 	*float64 `json:"leftMost" binding:"required"`
+	RightMost 	*float64 `json:"rightMost" binding:"required"`
+	TopMost		*float64 `json:"topMost" binding:"required"`
+	BottomMost 	*float64 `json:"bottomMost" binding:"required"`
 }
 
 type PieceData struct {
@@ -60,35 +60,35 @@ type PieceData struct {
 	Path 		string `json:"path" binding:"required"`
 	Move 		DOMMatrixs `json:"move" binding:"required"`
 	Pan 		DOMMatrixs `json:"pan" binding:"required"`
-	LeftMost 	*int `json:"leftMost" binding:"required"`
-	RightMost 	*int `json:"rightMost" binding:"required"`
-	TopMost		*int `json:"topMost" binding:"required"`
-	BottomMost 	*int `json:"bottomMost" binding:"required"`
+	LeftMost 	*float64 `json:"leftMost" binding:"required"`
+	RightMost 	*float64 `json:"rightMost" binding:"required"`
+	TopMost		*float64 `json:"topMost" binding:"required"`
+	BottomMost 	*float64 `json:"bottomMost" binding:"required"`
 }
 
 type DOMMatrixs struct {
-	A	int `json:"a" binding:"required"`
-    B	int `json:"b" binding:"required"`
-    C	int `json:"c" binding:"required"`
-    D	int `json:"d" binding:"required"`
-    E	int `json:"e" binding:"required"`
-    F	int `json:"f" binding:"required"`
-    M11	int `json:"m11" binding:"required"`
-    M12	int `json:"m12" binding:"required"`
-    M13	int `json:"m13" binding:"required"`
-    M14	int `json:"m14" binding:"required"`
-    M21	int `json:"m21" binding:"required"`
-    M22	int `json:"m22" binding:"required"`
-    M23	int `json:"m23" binding:"required"`
-    M24	int `json:"m24" binding:"required"`
-    M31	int `json:"m31" binding:"required"`
-    M32	int `json:"m32" binding:"required"`
-    M33	int `json:"m33" binding:"required"`
-    M34	int `json:"m34" binding:"required"`
-    M41	int `json:"m41" binding:"required"`
-    M42	int `json:"m42" binding:"required"`
-    M43	int `json:"m43" binding:"required"`
-    M44	int `json:"m44" binding:"required"`
+	A	float64 `json:"a" binding:"required"`
+    B	float64 `json:"b" binding:"required"`
+    C	float64 `json:"c" binding:"required"`
+    D	float64 `json:"d" binding:"required"`
+    E	float64 `json:"e" binding:"required"`
+    F	float64 `json:"f" binding:"required"`
+    M11	float64 `json:"m11" binding:"required"`
+    M12	float64 `json:"m12" binding:"required"`
+    M13	float64 `json:"m13" binding:"required"`
+    M14	float64 `json:"m14" binding:"required"`
+    M21	float64 `json:"m21" binding:"required"`
+    M22	float64 `json:"m22" binding:"required"`
+    M23	float64 `json:"m23" binding:"required"`
+    M24	float64 `json:"m24" binding:"required"`
+    M31	float64 `json:"m31" binding:"required"`
+    M32	float64 `json:"m32" binding:"required"`
+    M33	float64 `json:"m33" binding:"required"`
+    M34	float64 `json:"m34" binding:"required"`
+    M41	float64 `json:"m41" binding:"required"`
+    M42	float64 `json:"m42" binding:"required"`
+    M43	float64 `json:"m43" binding:"required"`
+    M44	float64 `json:"m44" binding:"required"`
 }
 
 func BelongsToUser(user_email string) func (db *gorm.DB) *gorm.DB {
