@@ -26,7 +26,7 @@ func Register(c *gin.Context) {
 	}
 
 	if data.Password != data.PasswordConfirmation {
-		error_service.PublicError(c, "password confirmation does not match", 422, "password_confirmation", data.PasswordConfirmation, "user")
+		error_service.PublicError(c, "password confirmation does not match", 422, "password_confirmation", "", "user")
 		return
 	}
 
