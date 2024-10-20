@@ -6,10 +6,13 @@ import (
 
 	database_config "qolboard-api/config/database"
 	auth_controller "qolboard-api/controllers/auth"
+	"qolboard-api/controllers/canvas_controller"
 	user_controller "qolboard-api/controllers/user"
 	auth_middleware "qolboard-api/middleware/auth"
 	cors_middleware "qolboard-api/middleware/cors"
-	database_middleware "qolboard-api/middleware/database"
+	error_middleware "qolboard-api/middleware/error"
+	response_middleware "qolboard-api/middleware/response"
+	error_service "qolboard-api/services/error"
 
 	"github.com/gin-gonic/gin"
 	slogger "github.com/jesse-rb/slogger-go"
@@ -20,7 +23,6 @@ func init() {
 	err := godotenv.Load()
 	if err != nil {
 		errorLogger.Log("main", "Error loading .env file", err)
-		os.Exit(1)
 	}
 
 	database_config.ConnectToDatabase()
@@ -32,12 +34,18 @@ var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "main", log.Lshortfile
 
 func main() {
 	// Setup router
-	r := gin.Default();
+	r := gin.Default()
 
-	r.Use(cors_middleware.Run)
+	error_service.SetUpValidator()
 
 	// Global middleware
-	r.Use(database_middleware.Run)
+
+	// Runs before
+	r.Use(cors_middleware.Run)
+
+	// Runs after (define in reverse)
+	r.Use(response_middleware.Run)
+	r.Use(error_middleware.Run)
 
 	// Define unauthenticated routes routes
 	// Auth routes
@@ -45,6 +53,8 @@ func main() {
 	{
 		rAuth.POST("/register", auth_controller.Register)
 		rAuth.POST("/login", auth_controller.Login)
+		rAuth.POST("/set_token", auth_controller.SetToken)
+		rAuth.POST("/resend_verification_email", auth_controller.ResendVerificationEmail)
 	}
 
 	// Define authenticated routes
@@ -56,8 +66,14 @@ func main() {
 
 		rUser.GET("", user_controller.Get)
 		rUser.POST("logout", auth_controller.Logout)
-	}
 
+		// User Canvas routes
+		rUser.POST("/canvas", canvas_controller.Save)
+		rUser.GET("/canvas", canvas_controller.Index)
+		rUser.GET("/canvas/:id", canvas_controller.Get)
+		rUser.POST("/canvas/:id", canvas_controller.Save)
+		rUser.DELETE("/canvas/:id", canvas_controller.Delete)
+	}
 
 	// Listen and serve router
 	err := r.Run()

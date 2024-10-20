@@ -2,8 +2,10 @@ package auth_controller
 
 import (
 	"log"
-	"net/http"
 	"os"
+	auth_service "qolboard-api/services/auth"
+	error_service "qolboard-api/services/error"
+	response_service "qolboard-api/services/response"
 	supabase_service "qolboard-api/services/supabase"
 
 	"github.com/gin-gonic/gin"
@@ -17,26 +19,73 @@ func Register(c *gin.Context) {
 	var data supabase_service.RegisterBodyData
 
 	err := c.ShouldBindJSON(&data)
+
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
 
 	if data.Password != data.PasswordConfirmation {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Passwords do not match."})
+		error_service.PublicError(c, "password confirmation does not match", 422, "password_confirmation", "", "user")
 		return
 	}
 
-	response, err := supabase_service.Signup(data)
+	code, response, err := supabase_service.Signup(data)
 	if err != nil {
-		errorLogger.Log("Register", "Failed supabase signup", err.Error())
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Sorry, somethiong went wrong during sign up."})
+		error_service.InternalError(c, err.Error())
 		return
+	}
+	if code != 200 {
+		error_service.PublicError(c, response.Msg, code, "email", response.ErrorCode, "user")
 	}
 
 	var email string = response.Email
 
-	c.JSON(http.StatusOK, gin.H{"email": email})
+	response_service.SetJSON(c, gin.H{"email": email, "code": response.ErrorCode})
+}
+
+func SetToken(c *gin.Context) {
+	var data supabase_service.SetTokenBodyData
+
+	err := c.ShouldBindJSON(&data)
+	if err != nil {
+		c.Error(err).SetType(gin.ErrorTypeBind)
+		return
+	}
+
+	email, err := auth_service.ParseJWT(data.Token)
+
+	if (err != nil) {
+		error_service.PublicError(c, "Invalid token", 401, "token", "", "")
+		return
+	}
+
+	auth_service.SetAuthCookie(c, data.Token, data.ExpiresIn)
+	response_service.SetJSON(c, gin.H{"email": email})
+}
+
+func ResendVerificationEmail(c *gin.Context) {
+	var data supabase_service.ResendEmailVerificationBodyData
+
+	err := c.ShouldBindJSON(&data)
+	if err != nil {
+		c.Error(err).SetType(gin.ErrorTypeBind)
+		return
+	}
+
+	// TODO: verify we have an unverified user for this email
+
+	code, err := supabase_service.ResendEmailVerification(data.Email)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+	if code != 200 {
+		error_service.PublicError(c, "", code, "", "", "credentials")
+		return
+	}
+
+	response_service.SetJSON(c, gin.H{"email": data.Email})
 }
 
 func Login(c *gin.Context) {
@@ -44,14 +93,17 @@ func Login(c *gin.Context) {
 
 	err := c.ShouldBindJSON(&data)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
 
-	response, err := supabase_service.Login(data)
+	code, response, err := supabase_service.Login(data)
 	if err != nil {
-		errorLogger.Log("Login", "Failed supabase login", err.Error())
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Sorry, somethiong went wrong during login."})
+		error_service.InternalError(c, err.Error())
+		return
+	}
+	if code != 200 {
+		error_service.PublicError(c, response.ErrorDescription, 401, "", "", "credentials")
 		return
 	}
 
@@ -59,34 +111,21 @@ func Login(c *gin.Context) {
 	var token string = response.AccessToken
 	var expiresIn int = response.ExpiresIn
 
-	var domain string = os.Getenv("APP_DOMAIN")
-	var secure bool = true
+	auth_service.SetAuthCookie(c, token, expiresIn)
 
-	var isDev bool = os.Getenv("GIN_MODE") == "dev"
-	if isDev {
-		secure = false;
-		c.SetSameSite(http.SameSiteLaxMode)
-	}
-	c.SetCookie("qolboard_jwt", token, expiresIn, "/", domain, secure, true)
-
-	c.JSON(http.StatusOK, gin.H{"email": email})
+	response_service.SetJSON(c, gin.H{"email": email})
 }
 
 func Logout(c *gin.Context) {
-	err := supabase_service.Logout()
+	code, err := supabase_service.Logout(c.GetString("token"))
 	if (err != nil) {
-		errorLogger.Log("Logout", "Failed supabase logout", err.Error())
+		error_service.InternalError(c, err.Error())
+		return
+	}
+	if code < 200 && code >= 300 {
+		error_service.PublicError(c, "Could not logout", 401, "", "", "")
+		return
 	}
 
-	var domain string = os.Getenv("APP_DOMAIN")
-	var secure bool = true
-
-	var isDev bool = os.Getenv("GIN_MODE") == "dev"
-	if isDev {
-		secure = false;
-		c.SetSameSite(http.SameSiteLaxMode)
-	}
-	c.SetCookie("qolboard_jwt", "", 0, "/", domain, secure, true) // Expire jwt cookie
-
-	c.JSON(http.StatusOK, gin.H{})
+	auth_service.ExpireAuthCookie(c)
 }

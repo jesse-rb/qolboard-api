@@ -13,7 +13,9 @@ var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "main", log.Lshortfil
 var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "main", log.Lshortfile+log.Ldate);
 
 func Run(c *gin.Context) {
-	c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+	var appHost string = os.Getenv("APP_HOST")
+
+	c.Writer.Header().Set("Access-Control-Allow-Origin", appHost)
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET, POST, PUT, DELETE")

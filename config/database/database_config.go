@@ -15,11 +15,17 @@ import (
 var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "database_config", log.Lshortfile+log.Ldate);
 var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "database_config", log.Lshortfile+log.Ldate);
 
+var database *Database
+
+func GetDatabase() *Database {
+	return database;
+}
+
 type Database struct {
 	Connection *gorm.DB
 }
 
-func ConnectToDatabase() *Database {
+func ConnectToDatabase() {
 	dsn := fmt.Sprintf(
 		"host=%s user=%s dbname=%s password=%s port=%s",
 		os.Getenv("DB_HOST"),
@@ -38,7 +44,7 @@ func ConnectToDatabase() *Database {
 	// e.g. db.AutoMigrate(&canvas_model.Canvas{})
 	db.AutoMigrate(&canvas_model.Canvas{})
 
-	return &Database{Connection: db}
+	database = &Database{Connection: db}
 }
 
 func (db *Database) AutoMigrate(m interface{}) {
