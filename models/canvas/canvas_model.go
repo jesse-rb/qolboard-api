@@ -16,7 +16,7 @@ const (
 
 type Canvas struct {
 	model.Model
-	UserEmail string `json:"userEmail"`
+	UserUuid string `json:"userUuid" gorm:"not null"`
 	CanvasData datatypes.JSON `json:"canvasData"`
 }
 
@@ -91,8 +91,8 @@ type DOMMatrixs struct {
     M44	float64 `json:"m44" binding:"required"`
 }
 
-func BelongsToUser(user_email string) func (db *gorm.DB) *gorm.DB {
+func BelongsToUser(userUuid string) func (db *gorm.DB) *gorm.DB {
 	return func (db *gorm.DB) *gorm.DB {
-	  return db.Where("user_email", user_email)
+	  	return db.Where("user_uuid", userUuid)
 	}
-  }
+}

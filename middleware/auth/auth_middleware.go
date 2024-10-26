@@ -20,25 +20,28 @@ func Run(c *gin.Context) {
 	
 	if (err != nil) {
 		error_service.PublicError(c, "Unauthorized", http.StatusUnauthorized, "", "", "user")
+		c.Abort()
 		return
 	}
 	
 	if (token == "") {
 		error_service.PublicError(c, "Unauthorized", http.StatusUnauthorized, "", "", "user")
+		c.Abort()
 		return
 	}
 
-	email, err := auth_service.ParseJWT(token)
+	claims, err := auth_service.ParseJWT(token)
 
 	if (err != nil) {
 		infoLogger.Log("AuthMiddleware", "Error parsing token", err)
 		error_service.PublicError(c, "Unauthorized", http.StatusUnauthorized, "", "", "user")
+		c.Abort()
 		return
 	}
 
-	infoLogger.Log("AuthMiddleware", "Received request from", email)
+	infoLogger.Log("AuthMiddleware", "Received request from", claims.Email)
 
-	c.Set("email", email)
+	c.Set("claims", claims)
 	c.Set("token", token)
 	c.Next()
 }

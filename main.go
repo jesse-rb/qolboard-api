@@ -6,7 +6,7 @@ import (
 
 	database_config "qolboard-api/config/database"
 	auth_controller "qolboard-api/controllers/auth"
-	"qolboard-api/controllers/canvas_controller"
+	canvas_controller "qolboard-api/controllers/canvas"
 	user_controller "qolboard-api/controllers/user"
 	auth_middleware "qolboard-api/middleware/auth"
 	cors_middleware "qolboard-api/middleware/cors"
@@ -73,6 +73,8 @@ func main() {
 		rUser.GET("/canvas/:id", canvas_controller.Get)
 		rUser.POST("/canvas/:id", canvas_controller.Save)
 		rUser.DELETE("/canvas/:id", canvas_controller.Delete)
+
+		rUser.GET("/ws/canvas/:id", canvas_controller.Websocket)
 	}
 
 	// Listen and serve router

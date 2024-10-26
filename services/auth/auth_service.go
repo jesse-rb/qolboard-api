@@ -22,12 +22,21 @@ func init() {
 	
 }
 
-type claims struct {
+type Claims struct {
 	Email string `json:"email"`
 	jwt.RegisteredClaims
 }
 
-func ParseJWT(token string) (email string, err error) {
+func GetClaims(c *gin.Context) *Claims {
+	claims, exists := c.Get("claims");
+	if (!exists) {
+		panic("No claims set")
+	}
+
+	return claims.(*Claims)
+}
+
+func ParseJWT(token string) (*Claims, error) {
 	var secret string = os.Getenv("SUPABASE_JWT_SECRET")
 	if (secret == "") {
 		errorLogger.Log("parseJWT", "Please set SUPABASE_JWT_SECRET environment variable", "empty")
@@ -35,7 +44,7 @@ func ParseJWT(token string) (email string, err error) {
 	}
 
 	// Parse token and validate signature
-	t, err := jwt.ParseWithClaims(token, &claims{}, func(t *jwt.Token) (interface{}, error) {
+	t, err := jwt.ParseWithClaims(token, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
             return nil, fmt.Errorf("error unexpected signing method: %v", t.Header["alg"])
         } 
@@ -44,12 +53,12 @@ func ParseJWT(token string) (email string, err error) {
 
 	// Check if the token is valid
 	if err != nil {
-		return "", fmt.Errorf("error validating tokenL %v", err)
-	} else if claims, ok := t.Claims.(*claims); ok {
-		return claims.Email, nil
+		return nil, fmt.Errorf("error validating tokenL %v", err)
+	} else if claims, ok := t.Claims.(*Claims); ok {
+		return claims, nil
 	}
 
-	return "", fmt.Errorf("error parsing token: %v", err)
+	return nil, fmt.Errorf("error parsing token: %v", err)
 }
 
 func SetAuthCookie(c *gin.Context, token string, expiresIn int) {

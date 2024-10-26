@@ -53,7 +53,7 @@ func SetToken(c *gin.Context) {
 		return
 	}
 
-	email, err := auth_service.ParseJWT(data.Token)
+	claims, err := auth_service.ParseJWT(data.Token)
 
 	if (err != nil) {
 		error_service.PublicError(c, "Invalid token", 401, "token", "", "")
@@ -61,7 +61,7 @@ func SetToken(c *gin.Context) {
 	}
 
 	auth_service.SetAuthCookie(c, data.Token, data.ExpiresIn)
-	response_service.SetJSON(c, gin.H{"email": email})
+	response_service.SetJSON(c, gin.H{"email": claims.Email})
 }
 
 func ResendVerificationEmail(c *gin.Context) {

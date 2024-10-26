@@ -8,8 +8,10 @@ import (
 	"os"
 	database_config "qolboard-api/config/database"
 	canvas_model "qolboard-api/models/canvas"
+	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	response_service "qolboard-api/services/response"
+	websocket_service "qolboard-api/services/websocket"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -20,13 +22,14 @@ var infoLogger slogger.Logger = *slogger.New(os.Stdout, slogger.ANSIGreen, "canv
 var errorLogger slogger.Logger = *slogger.New(os.Stderr, slogger.ANSIRed, "canvas_controller", log.Lshortfile+log.Ldate)
 
 func Index(c *gin.Context) {
-	db := database_config.GetDatabase();
+	db := database_config.GetDatabase()
 
-	email := c.GetString("email");
+	claims := auth_service.GetClaims(c)
+	userUuid := claims.Subject
 
 	var canvases []*canvas_model.Canvas;
 
-	db.Connection.Scopes(canvas_model.BelongsToUser(email)).Find(&canvases);
+	db.Connection.Scopes(canvas_model.BelongsToUser(userUuid)).Find(&canvases)
 
 	response_service.SetJSON(c, gin.H{
 		"data": canvases,
@@ -36,21 +39,23 @@ func Index(c *gin.Context) {
 func Get(c *gin.Context) {
 	db := database_config.GetDatabase();
 
-	email := c.GetString("email");
+	claims := auth_service.GetClaims(c);
+	userUuid := claims.Subject
 
 	var id string = c.Param("id");
 
 	var canvas canvas_model.Canvas;
 
-	db.Connection.Scopes(canvas_model.BelongsToUser(email)).First(&canvas, id);
+	db.Connection.Scopes(canvas_model.BelongsToUser(userUuid)).First(&canvas, id);
 
 	response_service.SetJSON(c, canvas);
 }
 
 func Save(c *gin.Context) {
-	db := database_config.GetDatabase();
+	db := database_config.GetDatabase()
 
-	email := c.GetString("email");
+	claims := auth_service.GetClaims(c)
+	userUuid := claims.Subject
 
 	var paramId string = c.Param("id");
 	var id uint64 = 0;
@@ -75,7 +80,7 @@ func Save(c *gin.Context) {
 		return;
 	}
 	
-	var canvas canvas_model.Canvas = canvas_model.Canvas{UserEmail: email, CanvasData: canvasDataJson};
+	var canvas canvas_model.Canvas = canvas_model.Canvas{UserUuid: userUuid, CanvasData: canvasDataJson};
 
 	if id > 0 {
 		// Update
@@ -83,7 +88,7 @@ func Save(c *gin.Context) {
 	}
 
 	result := db.Connection.
-		Scopes(canvas_model.BelongsToUser(email)).
+		Scopes(canvas_model.BelongsToUser(userUuid)).
 		Save(&canvas);
 
 	if result.Error != nil {
@@ -98,15 +103,16 @@ func Save(c *gin.Context) {
 }
 
 func Delete(c *gin.Context) {
-	db := database_config.GetDatabase();
+	db := database_config.GetDatabase()
 
-	email := c.GetString("email");
+	claims := auth_service.GetClaims(c)
+	userUuid := claims.Subject
 
-	var paramId string = c.Param("id");
-	var id uint64 = 0;
-	var err error = nil;
+	var paramId string = c.Param("id")
+	var id uint64 = 0
+	var err error = nil
 	if paramId != "" {
-		id, err = strconv.ParseUint(paramId, 10, 64);
+		id, err = strconv.ParseUint(paramId, 10, 64)
 		if err != nil {
 			error_service.PublicError(c, "Canvas id must be an integer", http.StatusUnprocessableEntity, "canvas_id", paramId, "canvas")
 			return
@@ -118,11 +124,11 @@ func Delete(c *gin.Context) {
 	canvas.ID = id;
 
 	db.Connection.
-		Scopes(canvas_model.BelongsToUser(email)).
+		Scopes(canvas_model.BelongsToUser(userUuid)).
 		First(&canvas, id);
 
 	result := db.Connection.
-		Scopes(canvas_model.BelongsToUser(email)).
+		Scopes(canvas_model.BelongsToUser(userUuid)).
 		Delete(&canvas, id);
 
 	if (result.Error != nil) {
@@ -134,4 +140,35 @@ func Delete(c *gin.Context) {
 		"message": fmt.Sprintf("Successfully saved canvas with id %v", canvas.ID),
 		"data": canvas,
 	})
+}
+
+func Websocket(c *gin.Context) {
+	claims := auth_service.GetClaims(c);
+	userUuid := claims.Subject;
+
+	var paramId string = c.Param("id");
+	var id uint64 = 0;
+	if paramId != "" {
+		var err error
+		id, err = strconv.ParseUint(paramId, 10, 64);
+		if err != nil {
+			error_service.PublicError(c, "Canvas id must be an integer", http.StatusUnprocessableEntity, "canvas_id", paramId, "canvas")
+			return
+		}
+	}
+
+	conn := websocket_service.Connect(c);
+
+	websocket_service.AddConnection(id, userUuid, conn)
+
+	for {
+		var message = &websocket_service.CanvasMessage{}
+		err := conn.ReadJSON(&message)
+		if (err != nil) {
+			infoLogger.Log("WebSocket", "Error reading message from websocket connection, closing connection", err)
+		}
+
+		var response = &websocket_service.CanvasMessage{Event: message.Event, Email: message.Email, Data: message.Data}
+		websocket_service.WriteToCanvasConnections(id, conn, response)
+	}
 }
