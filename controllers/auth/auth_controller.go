@@ -1,25 +1,18 @@
 package auth_controller
 
 import (
-	"log"
-	"os"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	response_service "qolboard-api/services/response"
 	supabase_service "qolboard-api/services/supabase"
 
 	"github.com/gin-gonic/gin"
-	slogger "github.com/jesse-rb/slogger-go"
 )
-
-var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "auth_controller", log.Lshortfile+log.Ldate);
-var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "auth_controller", log.Lshortfile+log.Ldate);
 
 func Register(c *gin.Context) {
 	var data supabase_service.RegisterBodyData
 
 	err := c.ShouldBindJSON(&data)
-
 	if err != nil {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
@@ -54,8 +47,7 @@ func SetToken(c *gin.Context) {
 	}
 
 	claims, err := auth_service.ParseJWT(data.Token)
-
-	if (err != nil) {
+	if err != nil {
 		error_service.PublicError(c, "Invalid token", 401, "token", "", "")
 		return
 	}
@@ -118,7 +110,7 @@ func Login(c *gin.Context) {
 
 func Logout(c *gin.Context) {
 	code, err := supabase_service.Logout(c.GetString("token"))
-	if (err != nil) {
+	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}

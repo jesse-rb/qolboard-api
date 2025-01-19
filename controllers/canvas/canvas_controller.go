@@ -3,23 +3,18 @@ package canvas_controller
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"os"
 	database_config "qolboard-api/config/database"
-	canvas_model "qolboard-api/models/canvas"
+	model "qolboard-api/models"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
+	"qolboard-api/services/logging"
 	response_service "qolboard-api/services/response"
 	websocket_service "qolboard-api/services/websocket"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	slogger "github.com/jesse-rb/slogger-go"
 )
-
-var infoLogger slogger.Logger = *slogger.New(os.Stdout, slogger.ANSIGreen, "canvas_controller", log.Lshortfile+log.Ldate)
-var errorLogger slogger.Logger = *slogger.New(os.Stderr, slogger.ANSIRed, "canvas_controller", log.Lshortfile+log.Ldate)
 
 func Index(c *gin.Context) {
 	db := database_config.GetDatabase()
@@ -27,9 +22,9 @@ func Index(c *gin.Context) {
 	claims := auth_service.GetClaims(c)
 	userUuid := claims.Subject
 
-	var canvases []*canvas_model.Canvas;
+	var canvases []*model.Canvas
 
-	db.Connection.Scopes(canvas_model.BelongsToUser(userUuid)).Find(&canvases)
+	db.Connection.Scopes(model.CanvasBelongsToUser(userUuid)).Find(&canvases)
 
 	response_service.SetJSON(c, gin.H{
 		"data": canvases,
@@ -37,18 +32,18 @@ func Index(c *gin.Context) {
 }
 
 func Get(c *gin.Context) {
-	db := database_config.GetDatabase();
+	db := database_config.GetDatabase()
 
-	claims := auth_service.GetClaims(c);
+	claims := auth_service.GetClaims(c)
 	userUuid := claims.Subject
 
-	var id string = c.Param("id");
+	var id string = c.Param("id")
 
-	var canvas canvas_model.Canvas;
+	var canvas model.Canvas
 
-	db.Connection.Scopes(canvas_model.BelongsToUser(userUuid)).First(&canvas, id);
+	db.Connection.Scopes(model.CanvasBelongsToUser(userUuid)).First(&canvas, id)
 
-	response_service.SetJSON(c, canvas);
+	response_service.SetJSON(c, canvas)
 }
 
 func Save(c *gin.Context) {
@@ -57,18 +52,18 @@ func Save(c *gin.Context) {
 	claims := auth_service.GetClaims(c)
 	userUuid := claims.Subject
 
-	var paramId string = c.Param("id");
-	var id uint64 = 0;
-	var err error = nil;
+	var paramId string = c.Param("id")
+	var id uint64 = 0
+	var err error = nil
 	if paramId != "" {
-		id, err = strconv.ParseUint(paramId, 10, 64);
+		id, err = strconv.ParseUint(paramId, 10, 64)
 		if err != nil {
 			error_service.PublicError(c, "Canvas id must be an integer", http.StatusUnprocessableEntity, "canvas_id", paramId, "canvas")
 			return
 		}
 	}
 
-	var canvasData canvas_model.CanvasData
+	var canvasData model.CanvasData
 	if err := c.ShouldBindJSON(&canvasData); err != nil {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
@@ -77,19 +72,19 @@ func Save(c *gin.Context) {
 	canvasDataJson, err := json.Marshal(canvasData)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
-		return;
+		return
 	}
-	
-	var canvas canvas_model.Canvas = canvas_model.Canvas{UserUuid: userUuid, CanvasData: canvasDataJson};
+
+	var canvas model.Canvas = model.Canvas{UserUuid: userUuid, CanvasData: canvasDataJson}
 
 	if id > 0 {
 		// Update
-		canvas.ID = id;
+		canvas.ID = id
 	}
 
 	result := db.Connection.
-		Scopes(canvas_model.BelongsToUser(userUuid)).
-		Save(&canvas);
+		Scopes(model.CanvasBelongsToUser(userUuid)).
+		Save(&canvas)
 
 	if result.Error != nil {
 		error_service.InternalError(c, result.Error.Error())
@@ -97,7 +92,7 @@ func Save(c *gin.Context) {
 	}
 
 	response_service.SetJSON(c, gin.H{
-		"msg": fmt.Sprintf("Successfully saved canvas with id: %v", canvas.ID),
+		"msg":    fmt.Sprintf("Successfully saved canvas with id: %v", canvas.ID),
 		"canvas": canvas,
 	})
 }
@@ -119,56 +114,57 @@ func Delete(c *gin.Context) {
 		}
 	}
 
-	var canvas canvas_model.Canvas;
+	var canvas model.Canvas
 
-	canvas.ID = id;
+	canvas.ID = id
 
 	db.Connection.
-		Scopes(canvas_model.BelongsToUser(userUuid)).
-		First(&canvas, id);
+		Scopes(model.CanvasBelongsToUser(userUuid)).
+		First(&canvas, id)
 
 	result := db.Connection.
-		Scopes(canvas_model.BelongsToUser(userUuid)).
-		Delete(&canvas, id);
+		Scopes(model.CanvasBelongsToUser(userUuid)).
+		Delete(&canvas, id)
 
-	if (result.Error != nil) {
+	if result.Error != nil {
 		error_service.InternalError(c, result.Error.Error())
 		return
 	}
 
 	response_service.SetJSON(c, gin.H{
 		"message": fmt.Sprintf("Successfully saved canvas with id %v", canvas.ID),
-		"data": canvas,
+		"data":    canvas,
 	})
 }
 
 func Websocket(c *gin.Context) {
-	claims := auth_service.GetClaims(c);
-	userUuid := claims.Subject;
+	claims := auth_service.GetClaims(c)
+	userUuid := claims.Subject
 
-	var paramId string = c.Param("id");
-	var id uint64 = 0;
+	var paramId string = c.Param("id")
+	var id uint64 = 0
 	if paramId != "" {
 		var err error
-		id, err = strconv.ParseUint(paramId, 10, 64);
+		id, err = strconv.ParseUint(paramId, 10, 64)
 		if err != nil {
 			error_service.PublicError(c, "Canvas id must be an integer", http.StatusUnprocessableEntity, "canvas_id", paramId, "canvas")
 			return
 		}
 	}
 
-	conn := websocket_service.Connect(c);
+	conn := websocket_service.Connect(c)
 
 	websocket_service.AddConnection(id, userUuid, conn)
 
 	for {
-		var message = &websocket_service.CanvasMessage{}
+		message := &websocket_service.CanvasMessage{}
 		err := conn.ReadJSON(&message)
-		if (err != nil) {
-			infoLogger.Log("WebSocket", "Error reading message from websocket connection, closing connection", err)
+		if err != nil {
+			logging.LogInfo("WebSocket", "Error reading message from websocket connection, closing connection", err)
 		}
 
-		var response = &websocket_service.CanvasMessage{Event: message.Event, Email: message.Email, Data: message.Data}
+		response := &websocket_service.CanvasMessage{Event: message.Event, Email: message.Email, Data: message.Data}
 		websocket_service.WriteToCanvasConnections(id, conn, response)
 	}
 }
+

@@ -2,15 +2,9 @@ package response_service
 
 import (
 	"encoding/json"
-	"log"
-	"os"
 
 	"github.com/gin-gonic/gin"
-	slogger "github.com/jesse-rb/slogger-go"
 )
-
-var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "response_service", log.Lshortfile+log.Ldate)
-var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "response_service", log.Lshortfile+log.Ldate)
 
 // Thank you gpt
 func toGinH(data any) gin.H {
@@ -63,3 +57,4 @@ func GetCode(c *gin.Context) int {
 	}
 	return code.(int)
 }
+

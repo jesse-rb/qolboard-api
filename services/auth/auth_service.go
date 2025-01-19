@@ -2,24 +2,21 @@ package auth_service
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
+	"qolboard-api/services/logging"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	slogger "github.com/jesse-rb/slogger-go"
 )
 
-var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "auth_service", log.Lshortfile+log.Ldate);
-var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "auth_service", log.Lshortfile+log.Ldate);
-
-var domain string = os.Getenv("APP_DOMAIN")
-var secure bool = true;
-var isDev bool = os.Getenv("GIN_MODE") == "dev"
+var (
+	domain string = os.Getenv("APP_DOMAIN")
+	secure bool   = true
+	isDev  bool   = os.Getenv("GIN_MODE") == "dev"
+)
 
 func init() {
-	
 }
 
 type Claims struct {
@@ -28,8 +25,8 @@ type Claims struct {
 }
 
 func GetClaims(c *gin.Context) *Claims {
-	claims, exists := c.Get("claims");
-	if (!exists) {
+	claims, exists := c.Get("claims")
+	if !exists {
 		panic("No claims set")
 	}
 
@@ -38,17 +35,17 @@ func GetClaims(c *gin.Context) *Claims {
 
 func ParseJWT(token string) (*Claims, error) {
 	var secret string = os.Getenv("SUPABASE_JWT_SECRET")
-	if (secret == "") {
-		errorLogger.Log("parseJWT", "Please set SUPABASE_JWT_SECRET environment variable", "empty")
+	if secret == "" {
+		logging.LogError("parseJWT", "Please set SUPABASE_JWT_SECRET environment variable", "empty")
 		panic(1)
 	}
 
 	// Parse token and validate signature
 	t, err := jwt.ParseWithClaims(token, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-            return nil, fmt.Errorf("error unexpected signing method: %v", t.Header["alg"])
-        } 
-        return []byte(secret), nil
+			return nil, fmt.Errorf("error unexpected signing method: %v", t.Header["alg"])
+		}
+		return []byte(secret), nil
 	})
 
 	// Check if the token is valid
@@ -63,7 +60,7 @@ func ParseJWT(token string) (*Claims, error) {
 
 func SetAuthCookie(c *gin.Context, token string, expiresIn int) {
 	if isDev {
-		secure = false;
+		secure = false
 		c.SetSameSite(http.SameSiteLaxMode)
 	}
 	c.SetCookie("qolboard_jwt", token, expiresIn, "/", domain, secure, true)
@@ -71,8 +68,9 @@ func SetAuthCookie(c *gin.Context, token string, expiresIn int) {
 
 func ExpireAuthCookie(c *gin.Context) {
 	if isDev {
-		secure = false;
+		secure = false
 		c.SetSameSite(http.SameSiteLaxMode)
 	}
 	c.SetCookie("qolboard_jwt", "", 0, "/", domain, secure, true) // Expire jwt cookie
 }
+
