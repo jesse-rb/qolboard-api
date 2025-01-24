@@ -38,6 +38,8 @@ func ConnectToDatabase() {
 	// Register auto migrations here:
 	// e.g. db.AutoMigrate(&model.Canvas{})
 	db.AutoMigrate(&model.Canvas{})
+	db.AutoMigrate(&model.CanvasSharedInvitation{})
+	db.AutoMigrate(&model.CanvasSharedAccess{})
 
 	database = &Database{Connection: db}
 }

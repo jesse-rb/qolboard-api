@@ -37,7 +37,7 @@ func Get(c *gin.Context) {
 	claims := auth_service.GetClaims(c)
 	userUuid := claims.Subject
 
-	var id string = c.Param("id")
+	var id string = c.Param("canvas_id")
 
 	var canvas model.Canvas
 
@@ -52,7 +52,7 @@ func Save(c *gin.Context) {
 	claims := auth_service.GetClaims(c)
 	userUuid := claims.Subject
 
-	var paramId string = c.Param("id")
+	var paramId string = c.Param("canvas_id")
 	var id uint64 = 0
 	var err error = nil
 	if paramId != "" {
@@ -103,7 +103,7 @@ func Delete(c *gin.Context) {
 	claims := auth_service.GetClaims(c)
 	userUuid := claims.Subject
 
-	var paramId string = c.Param("id")
+	var paramId string = c.Param("canvas_id")
 	var id uint64 = 0
 	var err error = nil
 	if paramId != "" {
@@ -167,4 +167,3 @@ func Websocket(c *gin.Context) {
 		websocket_service.WriteToCanvasConnections(id, conn, response)
 	}
 }
-

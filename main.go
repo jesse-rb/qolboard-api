@@ -7,6 +7,7 @@ import (
 	database_config "qolboard-api/config/database"
 	auth_controller "qolboard-api/controllers/auth"
 	canvas_controller "qolboard-api/controllers/canvas"
+	canvas_shared_invitation_controller "qolboard-api/controllers/canvas_shared_invitation"
 	user_controller "qolboard-api/controllers/user"
 	auth_middleware "qolboard-api/middleware/auth"
 	cors_middleware "qolboard-api/middleware/cors"
@@ -60,14 +61,22 @@ func main() {
 		rUser.Use(auth_middleware.Run)
 
 		rUser.GET("", user_controller.Get)
-		rUser.POST("logout", auth_controller.Logout)
+		rUser.POST("/logout", auth_controller.Logout)
 
 		// User Canvas routes
-		rUser.POST("/canvas", canvas_controller.Save)
-		rUser.GET("/canvas", canvas_controller.Index)
-		rUser.GET("/canvas/:id", canvas_controller.Get)
-		rUser.POST("/canvas/:id", canvas_controller.Save)
-		rUser.DELETE("/canvas/:id", canvas_controller.Delete)
+		rUserCanvas := rUser.Group("/canvas")
+		{
+			rUserCanvas.POST("", canvas_controller.Save)
+			rUserCanvas.GET("", canvas_controller.Index)
+			rUserCanvas.GET("/:canvas_id", canvas_controller.Get)
+			rUserCanvas.POST("/:canvas_id", canvas_controller.Save)
+			rUserCanvas.DELETE("/:canvas_id", canvas_controller.Delete)
+
+			rUserCanvasSharedInvitation := rUserCanvas.Group("/shared_invitation")
+			{
+				rUserCanvasSharedInvitation.POST("/:canvas_id", canvas_shared_invitation_controller.Create)
+			}
+		}
 
 		rUser.GET("/ws/canvas/:id", canvas_controller.Websocket)
 	}

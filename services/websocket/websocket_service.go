@@ -59,4 +59,3 @@ func WriteToCanvasConnections(canvasId uint64, except *websocket.Conn, data *Can
 		logging.LogError("WriteToCanvasConnections", "Attempted to write to canvas connections that is not mapped", canvasId)
 	}
 }
-

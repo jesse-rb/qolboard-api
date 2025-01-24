@@ -14,8 +14,9 @@ const (
 
 type Canvas struct {
 	Model
-	UserUuid   string         `json:"userUuid" gorm:"not null"`
-	CanvasData datatypes.JSON `json:"canvasData"`
+	UserUuid                string                    `json:"userUuid" gorm:"not null"`
+	CanvasData              datatypes.JSON            `json:"canvasData"`
+	CanvasSharedInvitations []*CanvasSharedInvitation `json:"canvas_shared_invitations"`
 }
 
 type SerializedCanvas struct{} // TODO...
@@ -94,4 +95,3 @@ func CanvasBelongsToUser(userUuid string) func(db *gorm.DB) *gorm.DB {
 		return db.Where("user_uuid", userUuid)
 	}
 }
-
