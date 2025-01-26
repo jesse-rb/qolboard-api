@@ -1,6 +1,7 @@
 package error_service
 
 import (
+	"errors"
 	"fmt"
 	"qolboard-api/services/logging"
 	"reflect"
@@ -40,7 +41,7 @@ func SetUpValidator() {
 }
 
 func PublicError(c *gin.Context, message string, code int, field string, value string, resource string) {
-	err := c.Error(fmt.Errorf(message))
+	err := c.Error(errors.New(message))
 	err.SetType(gin.ErrorTypePublic)
 	err.SetMeta(ErrorMeta{
 		Field:    field,
@@ -51,7 +52,7 @@ func PublicError(c *gin.Context, message string, code int, field string, value s
 }
 
 func InternalError(c *gin.Context, message string) {
-	err := c.Error(fmt.Errorf(message))
+	err := c.Error(errors.New(message))
 	err.SetType(gin.ErrorTypePrivate)
 	err.SetMeta(ErrorMeta{
 		Field:    "",

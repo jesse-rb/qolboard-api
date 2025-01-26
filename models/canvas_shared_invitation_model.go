@@ -1,21 +1,22 @@
 package model
 
 import (
-	"crypto/rand"
-	"encoding/base64"
-	"qolboard-api/services/logging"
-	"time"
+	"fmt"
+	"os"
+	service "qolboard-api/services"
 
 	"gorm.io/gorm"
 )
 
 type CanvasSharedInvitation struct {
 	Model
-	Code               string              `json:"code" gorm:"not null"`
+	Code               string              `json:"code" gorm:"not null;index:,unique"`
 	CanvasId           uint64              `json:"canvas_id" gorm:"not null"`
-	ExpiresAt          time.Time           `json:"expires_at" gorm:"not null"`
+	UserUuid           string              `json:"userUuid" gorm:"not null"`
 	Canvas             *Canvas             `json:"canvas"`
 	CanvasSharedAccess *CanvasSharedAccess `json:"canvas_shared_access"`
+
+	InviteLink string `json:"link" gorm:"-"` // Calculated on the fly
 }
 
 func CanvasSharedInvitationBelongsToCanvas(canvasId uint64) func(db *gorm.DB) *gorm.DB {
@@ -24,8 +25,8 @@ func CanvasSharedInvitationBelongsToCanvas(canvasId uint64) func(db *gorm.DB) *g
 	}
 }
 
-func New(canvasId uint64) (*CanvasSharedInvitation, error) {
-	code, err := generateCode(244)
+func NewCanvasSharedInvitation(canvasId uint64) (*CanvasSharedInvitation, error) {
+	code, err := service.GenerateCode(256)
 	if err != nil {
 		return nil, err
 	}
@@ -36,22 +37,12 @@ func New(canvasId uint64) (*CanvasSharedInvitation, error) {
 	}, nil
 }
 
-func generateCode(len uint) (string, error) {
-	// Number of bytes needed for len base64 encoded chars
-	lenBytes := (len*6 + 7) / 8
+func (self *CanvasSharedInvitation) Response() *CanvasSharedInvitation {
+	self.InviteLink = self.buildInviteLink()
+	return self
+}
 
-	// Init byte slice
-	randomBytes := make([]byte, lenBytes)
-
-	// Get random bytes
-	_, err := rand.Read(randomBytes)
-	if err != nil {
-		logging.LogError("generateCode", "Error generatiing code", err)
-		return "", err
-	}
-
-	// Encode bytes to URL-safe Base64 string
-	code := base64.RawURLEncoding.EncodeToString(randomBytes)
-
-	return code, nil
+func (self *CanvasSharedInvitation) buildInviteLink() string {
+	apiHost := os.Getenv("API_HOST")
+	return fmt.Sprintf("%s/canvas_shared_invite/%s", apiHost, self.Code)
 }

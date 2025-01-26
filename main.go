@@ -71,6 +71,7 @@ func main() {
 			rUserCanvas.GET("/:canvas_id", canvas_controller.Get)
 			rUserCanvas.POST("/:canvas_id", canvas_controller.Save)
 			rUserCanvas.DELETE("/:canvas_id", canvas_controller.Delete)
+			rUserCanvas.POST("/:canvas_id/:code", canvas_shared_invitation_controller.AcceptInvite)
 
 			rUserCanvasSharedInvitation := rUserCanvas.Group("/shared_invitation")
 			{
