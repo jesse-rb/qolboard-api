@@ -61,6 +61,10 @@ func index(c *gin.Context) {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
+
+	db := database_config.GetDatabase()
+
+	// db.Connection.Scopes(funcs ...func(*gorm.DB) *gorm.DB)
 }
 
 func AcceptInvite(c *gin.Context) {
