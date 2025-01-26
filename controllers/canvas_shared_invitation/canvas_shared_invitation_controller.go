@@ -64,7 +64,7 @@ func index(c *gin.Context) {
 
 	db := database_config.GetDatabase()
 
-	// db.Connection.Scopes(funcs ...func(*gorm.DB) *gorm.DB)
+	db.Connection.Scopes(model.CanvasSharedInvitationBelongsToCanvas(query.CanvasId))
 }
 
 func AcceptInvite(c *gin.Context) {
