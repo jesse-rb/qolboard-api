@@ -10,7 +10,7 @@ import (
 
 type CanvasSharedInvitation struct {
 	Model
-	Code               string              `json:"code" gorm:"not null;index:,unique"`
+	Code               string              `json:"-" gorm:"not null;index:,unique"`
 	CanvasId           uint64              `json:"canvas_id" gorm:"not null"`
 	UserUuid           string              `json:"userUuid" gorm:"not null;index"`
 	Canvas             *Canvas             `json:"canvas"`
@@ -44,12 +44,13 @@ func NewCanvasSharedInvitation(userUuid string, canvasId uint64) (*CanvasSharedI
 	}, nil
 }
 
-func (self *CanvasSharedInvitation) Response() *CanvasSharedInvitation {
-	self.InviteLink = self.buildInviteLink()
-	return self
+func (sharedInvitation *CanvasSharedInvitation) Response() *CanvasSharedInvitation {
+	sharedInvitation.InviteLink = sharedInvitation.buildInviteLink()
+	sharedInvitation.Code = ""
+	return sharedInvitation
 }
 
-func (self *CanvasSharedInvitation) buildInviteLink() string {
+func (sharedInvitation *CanvasSharedInvitation) buildInviteLink() string {
 	apiHost := os.Getenv("API_HOST")
-	return fmt.Sprintf("%s/canvas_shared_invite/%s", apiHost, self.Code)
+	return fmt.Sprintf("%s/user/canvas/%v/accept_invite/%s", apiHost, sharedInvitation.CanvasId, sharedInvitation.Code)
 }

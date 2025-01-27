@@ -92,6 +92,6 @@ type DOMMatrixs struct {
 
 func CanvasBelongsToUser(userUuid string) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("user_uuid", userUuid)
+		return db.Where("canvas.user_uuid", userUuid)
 	}
 }

@@ -41,7 +41,11 @@ func Get(c *gin.Context) {
 
 	var canvas model.Canvas
 
-	db.Connection.Scopes(model.CanvasBelongsToUser(userUuid)).First(&canvas, id)
+	db.Connection.
+		Joins("LEFT JOIN canvas_shared_accesses ON canvas_shared_accesses.canvas_id = canvas.id AND canvas_shared_accesses.user_uuid = ?", userUuid).
+		Where(db.Connection.Scopes(model.CanvasBelongsToUser(userUuid))).
+		Or(db.Connection.Where("canvas_shared_accesses.user_uuid = ?", userUuid)).
+		First(&canvas, id)
 
 	response_service.SetJSON(c, canvas)
 }
@@ -132,7 +136,7 @@ func Delete(c *gin.Context) {
 	}
 
 	response_service.SetJSON(c, gin.H{
-		"message": fmt.Sprintf("Successfully saved canvas with id %v", canvas.ID),
+		"message": fmt.Sprintf("Successfully deleted canvas shared invitation with id %v", canvas.ID),
 		"data":    canvas,
 	})
 }
