@@ -4,6 +4,7 @@ import (
 	"net/http"
 	database_config "qolboard-api/config/database"
 	model "qolboard-api/models"
+	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	response_service "qolboard-api/services/response"
 	"strconv"
@@ -11,8 +12,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type IndexQuery struct {
+	CanvasId uint64 `form:"canvas_id"`
+	Page     uint64 `form:"page"`
+	Limit    uint64 `form:"limit"`
+}
+
 func Create(c *gin.Context) {
 	db := database_config.GetDatabase()
+
+	var claims auth_service.Claims = *auth_service.GetClaims(c)
 
 	var paramCanvasId string = c.Param("canvas_id")
 	var canvasId uint64 = 0
@@ -27,7 +36,7 @@ func Create(c *gin.Context) {
 
 	var canvasSharedInvitation *model.CanvasSharedInvitation
 
-	canvasSharedInvitation, err = model.NewCanvasSharedInvitation(canvasId)
+	canvasSharedInvitation, err = model.NewCanvasSharedInvitation(claims.Subject, canvasId)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
@@ -42,29 +51,54 @@ func Create(c *gin.Context) {
 		return
 	}
 
-	response_service.SetCode(c, 200)
 	response_service.SetJSON(c, gin.H{
 		"data": canvasSharedInvitation.Response(),
 	})
 }
 
-type indexQuery struct {
-	CanvasId uint64 `json:"canvas_id"`
-	Page     uint64 `json:"page"`
-	Limit    uint64 `json:"limit"`
-}
+func Index(c *gin.Context) {
+	// Get user claims
+	claims := auth_service.GetClaims(c)
 
-func index(c *gin.Context) {
-	var query *indexQuery
-
-	if err := c.ShouldBindQuery(query); err != nil {
+	// Get query params
+	var queryValues IndexQuery
+	if err := c.ShouldBindQuery(&queryValues); err != nil {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
 
+	// Query with filters
 	db := database_config.GetDatabase()
 
-	db.Connection.Scopes(model.CanvasSharedInvitationBelongsToCanvas(query.CanvasId))
+	query := db.Connection.Model(&model.CanvasSharedInvitation{})
+
+	// User UUID
+	query.Scopes(model.CanvasSharedInvitationBelongsToUser(claims.Subject))
+
+	// Canvas ID
+	if queryValues.CanvasId > 0 {
+		query.Scopes(model.CanvasSharedInvitationBelongsToCanvas(queryValues.CanvasId))
+	}
+
+	// Pagination
+	page := 0
+	limit := 100
+	if queryValues.Page > 0 {
+		page = int(queryValues.Page)
+	}
+	if queryValues.Limit > 0 {
+		limit = min(limit, int(queryValues.Limit))
+	}
+
+	query.Limit(limit)
+	query.Offset(limit * page)
+
+	var data []*model.CanvasSharedInvitation
+	query.Find(&data)
+
+	response_service.SetJSON(c, gin.H{
+		"data": data,
+	})
 }
 
 func AcceptInvite(c *gin.Context) {

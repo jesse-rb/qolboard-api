@@ -19,19 +19,26 @@ type CanvasSharedInvitation struct {
 	InviteLink string `json:"link" gorm:"-"` // Calculated on the fly
 }
 
+func CanvasSharedInvitationBelongsToUser(userUuid string) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where("user_uuid", userUuid)
+	}
+}
+
 func CanvasSharedInvitationBelongsToCanvas(canvasId uint64) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		return db.Where("canvas_id", canvasId)
 	}
 }
 
-func NewCanvasSharedInvitation(canvasId uint64) (*CanvasSharedInvitation, error) {
+func NewCanvasSharedInvitation(userUuid string, canvasId uint64) (*CanvasSharedInvitation, error) {
 	code, err := service.GenerateCode(256)
 	if err != nil {
 		return nil, err
 	}
 
 	return &CanvasSharedInvitation{
+		UserUuid: userUuid,
 		CanvasId: canvasId,
 		Code:     code,
 	}, nil

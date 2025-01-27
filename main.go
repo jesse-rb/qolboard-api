@@ -64,20 +64,15 @@ func main() {
 		rUser.POST("/logout", auth_controller.Logout)
 
 		// User Canvas routes
-		rUserCanvas := rUser.Group("/canvas")
-		{
-			rUserCanvas.POST("", canvas_controller.Save)
-			rUserCanvas.GET("", canvas_controller.Index)
-			rUserCanvas.GET("/:canvas_id", canvas_controller.Get)
-			rUserCanvas.POST("/:canvas_id", canvas_controller.Save)
-			rUserCanvas.DELETE("/:canvas_id", canvas_controller.Delete)
-			rUserCanvas.POST("/:canvas_id/:code", canvas_shared_invitation_controller.AcceptInvite)
+		rUser.POST("/canvas", canvas_controller.Save)
+		rUser.GET("/canvas", canvas_controller.Index)
+		rUser.GET("/canvas/:canvas_id", canvas_controller.Get)
+		rUser.POST("/canvas/:canvas_id", canvas_controller.Save)
+		rUser.DELETE("/canvas/:canvas_id", canvas_controller.Delete)
+		// rUserCanvas.POST("/canvas/:canvas_id/:code", canvas_shared_invitation_controller.AcceptInvite)
 
-			rUserCanvasSharedInvitation := rUserCanvas.Group("/shared_invitation")
-			{
-				rUserCanvasSharedInvitation.POST("/:canvas_id", canvas_shared_invitation_controller.Create)
-			}
-		}
+		rUser.POST("/canvas/:canvas_id/shared_invitation", canvas_shared_invitation_controller.Create)
+		rUser.GET("/canvas/shared_invitation", canvas_shared_invitation_controller.Index)
 
 		rUser.GET("/ws/canvas/:id", canvas_controller.Websocket)
 	}

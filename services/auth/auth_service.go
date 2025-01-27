@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	service "qolboard-api/services"
 	"qolboard-api/services/logging"
 
 	"github.com/gin-gonic/gin"
@@ -15,9 +16,6 @@ var (
 	secure bool   = true
 	isDev  bool   = os.Getenv("GIN_MODE") == "dev"
 )
-
-func init() {
-}
 
 type Claims struct {
 	Email string `json:"email"`
@@ -31,6 +29,24 @@ func GetClaims(c *gin.Context) *Claims {
 	}
 
 	return claims.(*Claims)
+}
+
+func SetAuthCookie(c *gin.Context, token string, expiresIn int) {
+	if isDev {
+		secure = false
+		c.SetSameSite(http.SameSiteLaxMode)
+	}
+	c.SetCookie("qolboard_jwt", token, expiresIn, "/", domain, secure, true)
+}
+
+func ExpireAuthCookie(c *gin.Context) {
+	service.PanicWithoutContext(c)
+
+	if isDev {
+		secure = false
+		c.SetSameSite(http.SameSiteLaxMode)
+	}
+	c.SetCookie("qolboard_jwt", "", 0, "/", domain, secure, true) // Expire jwt cookie
 }
 
 func ParseJWT(token string) (*Claims, error) {
@@ -57,20 +73,3 @@ func ParseJWT(token string) (*Claims, error) {
 
 	return nil, fmt.Errorf("error parsing token: %v", err)
 }
-
-func SetAuthCookie(c *gin.Context, token string, expiresIn int) {
-	if isDev {
-		secure = false
-		c.SetSameSite(http.SameSiteLaxMode)
-	}
-	c.SetCookie("qolboard_jwt", token, expiresIn, "/", domain, secure, true)
-}
-
-func ExpireAuthCookie(c *gin.Context) {
-	if isDev {
-		secure = false
-		c.SetSameSite(http.SameSiteLaxMode)
-	}
-	c.SetCookie("qolboard_jwt", "", 0, "/", domain, secure, true) // Expire jwt cookie
-}
-
