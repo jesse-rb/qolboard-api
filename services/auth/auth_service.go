@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	service "qolboard-api/services"
 	"qolboard-api/services/logging"
 
 	"github.com/gin-gonic/gin"
@@ -40,8 +39,6 @@ func SetAuthCookie(c *gin.Context, token string, expiresIn int) {
 }
 
 func ExpireAuthCookie(c *gin.Context) {
-	service.PanicWithoutContext(c)
-
 	if isDev {
 		secure = false
 		c.SetSameSite(http.SameSiteLaxMode)

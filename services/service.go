@@ -4,8 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"qolboard-api/services/logging"
-
-	"github.com/gin-gonic/gin"
 )
 
 func GenerateCode(len uint) (string, error) {
@@ -26,10 +24,4 @@ func GenerateCode(len uint) (string, error) {
 	code := base64.RawURLEncoding.EncodeToString(randomBytes)
 
 	return code, nil
-}
-
-func PanicWithoutContext(c *gin.Context) {
-	if c == nil {
-		panic("Context is required")
-	}
 }

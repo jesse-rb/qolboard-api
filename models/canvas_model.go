@@ -14,7 +14,7 @@ const (
 
 type Canvas struct {
 	Model
-	UserUuid                string                    `json:"userUuid" gorm:"not null"`
+	UserUuid                string                    `json:"userUuid" gorm:"foreignKey:UserUuid;references:id;type:uuid;not null;index"`
 	CanvasData              datatypes.JSON            `json:"canvasData"`
 	CanvasSharedInvitations []*CanvasSharedInvitation `json:"canvas_shared_invitations"`
 }

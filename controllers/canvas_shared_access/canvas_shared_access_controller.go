@@ -9,6 +9,7 @@ import (
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	response_service "qolboard-api/services/response"
+	"slices"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -16,9 +17,10 @@ import (
 )
 
 type IndexQuery struct {
-	CanvasId uint64 `form:"canvas_id"`
-	Page     uint64 `form:"page"`
-	Limit    uint64 `form:"limit"`
+	CanvasId uint64   `form:"canvas_id"`
+	Page     uint64   `form:"page"`
+	Limit    uint64   `form:"limit"`
+	With     []string `from:"with"`
 }
 
 func Index(c *gin.Context) {
@@ -32,13 +34,13 @@ func Index(c *gin.Context) {
 		return
 	}
 
+	var data []*model.CanvasSharedAccess
+
 	// Query with filters
 	db := database_config.GetDatabase()
 
-	query := db.Connection.Model(&model.CanvasSharedAccess{})
-
 	// User UUID
-	query.Scopes(model.CanvasSharedAccessBelongsToUserThroughCanvas(claims.Subject))
+	query := db.Connection.Scopes(model.CanvasSharedAccessBelongsToUserThroughCanvas(claims.Subject))
 
 	// Canvas ID
 	if queryValues.CanvasId > 0 {
@@ -55,10 +57,16 @@ func Index(c *gin.Context) {
 		limit = min(limit, int(queryValues.Limit))
 	}
 
+	// With
+	if slices.Contains(queryValues.With, "user") {
+		query.Preload("User")
+		query.Preload("Canvas")
+	}
+	query.Preload("User")
+
 	query.Limit(limit)
 	query.Offset(limit * page)
 
-	var data []*model.CanvasSharedInvitation
 	query.Find(&data)
 
 	response_service.SetJSON(c, gin.H{

@@ -12,7 +12,7 @@ type CanvasSharedInvitation struct {
 	Model
 	Code               string              `json:"-" gorm:"not null;index:,unique"`
 	CanvasId           uint64              `json:"canvas_id" gorm:"not null"`
-	UserUuid           string              `json:"userUuid" gorm:"not null;index"`
+	UserUuid           string              `json:"user_uuid" gorm:"foreignKey:UserUuid;references:id;type:uuid;not null;index"`
 	Canvas             *Canvas             `json:"canvas"`
 	CanvasSharedAccess *CanvasSharedAccess `json:"canvas_shared_access"`
 
