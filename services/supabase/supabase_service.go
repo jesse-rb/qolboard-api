@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	model "qolboard-api/models"
 	"qolboard-api/services/logging"
 )
 
@@ -35,27 +36,27 @@ type ResendBodyData struct {
 	Email string `json:"email" binding:"email,required"`
 }
 
-type User struct {
-	Email string `json:"email"`
+type SupabaseResponse struct {
+	ErrorCode string `json:"error_code"`
+	Code      int    `json:"code"`
+	Msg       string `json:"msg"`
 }
 
 type SupabaseRegisterResponse struct {
-	Email     string `json:"email"`
-	ErrorCode string `json:"error_code"`
-	Msg       string `json:"msg"`
+	Email string `json:"email"`
+	Uuid  string `json:"id"`
+	SupabaseResponse
 }
 
 type SupabaseLoginResponse struct {
-	AccessToken      string `json:"access_token"`
-	ExpiresIn        int    `json:"expires_in"`
-	User             User   `json:"user"`
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description"`
+	AccessToken string     `json:"access_token"`
+	ExpiresIn   int        `json:"expires_in"`
+	User        model.User `json:"user"`
+	SupabaseResponse
 }
 
 type SupabaseLogoutResponse struct {
-	ErrorCode string `json:"error_code"`
-	Msg       string `json:"msg"`
+	SupabaseResponse
 }
 
 func Signup(data RegisterBodyData) (code int, supabaseRegisterResponse *SupabaseRegisterResponse, err error) {
@@ -72,7 +73,6 @@ func Signup(data RegisterBodyData) (code int, supabaseRegisterResponse *Supabase
 	if err != nil {
 		return code, nil, err
 	}
-	logging.LogDebug("Signup", "supabase response", supabaseResponse)
 
 	return code, &supabaseResponse, err
 }
