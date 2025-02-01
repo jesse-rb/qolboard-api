@@ -45,7 +45,17 @@ func Get(c *gin.Context) {
 		Joins("LEFT JOIN canvas_shared_accesses ON canvas_shared_accesses.canvas_id = canvas.id AND canvas_shared_accesses.user_uuid = ?", userUuid).
 		Where(db.Connection.Scopes(model.CanvasBelongsToUser(userUuid))).
 		Or(db.Connection.Where("canvas_shared_accesses.user_uuid = ?", userUuid)).
+		Preload("User").
+		Preload("CanvasSharedAccess").
+		Preload("CanvasSharedAccess.User").
+		Preload("CanvasSharedInvitation").
 		First(&canvas, id)
+
+	if canvas.CanvasSharedInvitation != nil {
+		for i, csi := range canvas.CanvasSharedInvitation {
+			canvas.CanvasSharedInvitation[i] = csi.Response()
+		}
+	}
 
 	response_service.SetJSON(c, canvas)
 }

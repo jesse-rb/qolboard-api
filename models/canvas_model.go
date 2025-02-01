@@ -14,9 +14,11 @@ const (
 
 type Canvas struct {
 	Model
-	UserUuid                string                    `json:"userUuid" gorm:"foreignKey:UserUuid;references:id;type:uuid;not null;index"`
-	CanvasData              datatypes.JSON            `json:"canvasData"`
-	CanvasSharedInvitations []*CanvasSharedInvitation `json:"canvas_shared_invitations"`
+	UserUuid               string                    `json:"user_uuid" gorm:"foreignKey:UserUuid;references:Uuid;type:uuid;not null;index"`
+	CanvasData             datatypes.JSON            `json:"canvasData"`
+	CanvasSharedAccess     []*CanvasSharedAccess     `json:"canvas_shared_accesses"`
+	CanvasSharedInvitation []*CanvasSharedInvitation `json:"canvas_shared_invitations"`
+	User                   *User                     `json:"user"`
 }
 
 type SerializedCanvas struct{} // TODO...
@@ -38,12 +40,18 @@ type CanvasData struct {
 	Zoom            *float64       `json:"zoom" binding:"required"`
 	ZoomDx          *float64       `json:"zoomDx"`
 	ZoomDy          *float64       `json:"zoomDy"`
+	RulerSettings   RulerSettings  `json:"rulerSettings"`
 	PiecesManager   PiecesManager  `json:"piecesManager" binding:"required"`
 }
 
 type PieceSettings struct {
 	Size   int    `json:"size" binding:"required"`
 	Coloer string `json:"color" binding:"required"`
+}
+
+type RulerSettings struct {
+	ShowUnits bool `json:"show_units"`
+	ShowLines bool `json:"show_lines"`
 }
 
 type PiecesManager struct {

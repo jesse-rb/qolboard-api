@@ -60,7 +60,6 @@ func Index(c *gin.Context) {
 	// With
 	if slices.Contains(queryValues.With, "user") {
 		query.Preload("User")
-		query.Preload("Canvas")
 	}
 	query.Preload("User")
 

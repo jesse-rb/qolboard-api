@@ -1,8 +1,8 @@
 package model
 
 type User struct {
-	Uuid  string `gorm:"column:id;primaryKey;type:uuid"`
-	Email string
+	Uuid  string `json:"uuid" gorm:"column:id;primaryKey;type:uuid"`
+	Email string `json:"email"`
 }
 
 func (u User) TableName() string {
