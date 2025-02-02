@@ -38,6 +38,22 @@ func Create(c *gin.Context) {
 		return
 	}
 
+	var canvas model.Canvas
+	result := db.Connection.First(&canvas, canvasId)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			error_service.PublicError(c, "Could not find canvas", http.StatusNotFound, "id", paramCanvasId, "canvas")
+			return
+		}
+		error_service.InternalError(c, result.Error.Error())
+		return
+	}
+
+	if claims.Subject != canvas.UserUuid {
+		error_service.PublicError(c, "Only the canvas owner can perform this action", http.StatusUnauthorized, "id", paramCanvasId, "canvas")
+		return
+	}
+
 	var canvasSharedInvitation *model.CanvasSharedInvitation
 
 	canvasSharedInvitation, err = model.NewCanvasSharedInvitation(claims.Subject, canvasId)
@@ -46,7 +62,7 @@ func Create(c *gin.Context) {
 		return
 	}
 
-	result := db.Connection.
+	result = db.Connection.
 		Scopes(model.CanvasSharedInvitationBelongsToCanvas(canvasId)).
 		Save(canvasSharedInvitation)
 
@@ -139,7 +155,7 @@ func Delete(c *gin.Context) {
 	}
 
 	response_service.SetJSON(c, gin.H{
-		"message": fmt.Sprintf("Successfully deleted canvas with id %v", sharedInvitation.ID),
+		"message": fmt.Sprintf("Successfully deleted shared invitiation with id %v", sharedInvitation.ID),
 		"data":    sharedInvitation,
 	})
 }

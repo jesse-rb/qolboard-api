@@ -40,7 +40,7 @@ func Index(c *gin.Context) {
 	db := database_config.GetDatabase()
 
 	// User UUID
-	query := db.Connection.Scopes(model.CanvasSharedAccessBelongsToUserThroughCanvas(claims.Subject))
+	query := db.Connection.Scopes(model.CanvasSharedAccessInnerJoinCanvasOnCanvasOwner(claims.Subject))
 
 	// Canvas ID
 	if queryValues.CanvasId > 0 {
@@ -84,12 +84,13 @@ func Delete(c *gin.Context) {
 		return
 	}
 
-	db := database_config.GetDatabase()
+	db := database_config.GetDatabase().Connection
 
 	// Find record
 	var sharedAccess model.CanvasSharedAccess
-	result := db.Connection.
-		Scopes(model.CanvasSharedAccessBelongsToUser(claims.Subject)).
+	result := db.Scopes(model.CanvasSharedAccessLeftJoinCanvasOnCanvasOwner(claims.Subject)).
+		Where("canvas.user_uuid", claims.Subject).
+		Or(db.Scopes(model.CanvasSharedAccessBelongsToUser(claims.Subject))).
 		First(&sharedAccess, id)
 
 	if result.Error != nil {
@@ -102,9 +103,7 @@ func Delete(c *gin.Context) {
 	}
 
 	// Delete record
-	result = db.Connection.
-		Scopes(model.CanvasSharedAccessBelongsToUser(claims.Subject)).
-		Delete(&sharedAccess, id)
+	result = db.Delete(&sharedAccess, id)
 	if result.Error != nil {
 		error_service.InternalError(c, result.Error.Error())
 		return
@@ -112,6 +111,6 @@ func Delete(c *gin.Context) {
 
 	response_service.SetJSON(c, gin.H{
 		"message": fmt.Sprintf("Successfully deleted canvas shared access with id %v", sharedAccess.ID),
-		"data":    sharedAccess.CanvasSharedInvitation.CanvasSharedAccess,
+		"data":    sharedAccess,
 	})
 }

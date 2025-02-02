@@ -14,6 +14,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func Index(c *gin.Context) {
@@ -37,19 +38,33 @@ func Get(c *gin.Context) {
 	claims := auth_service.GetClaims(c)
 	userUuid := claims.Subject
 
-	var id string = c.Param("canvas_id")
+	var paramId string = c.Param("canvas_id")
+	id, err := strconv.ParseUint(paramId, 10, 64)
+	if err != nil {
+		error_service.PublicError(c, "Canvas id must be a valid integer", http.StatusUnprocessableEntity, "id", paramId, "canvas")
+		return
+	}
 
-	var canvas model.Canvas
+	var canvas model.Canvas = model.Canvas{}
+	canvas.ID = id
 
-	db.Connection.
-		Joins("LEFT JOIN canvas_shared_accesses ON canvas_shared_accesses.canvas_id = canvas.id AND canvas_shared_accesses.user_uuid = ?", userUuid).
+	result := db.Connection.
+		Joins("LEFT JOIN canvas_shared_accesses ON canvas_shared_accesses.canvas_id = canvas.id AND canvas_shared_accesses.user_uuid = ? AND canvas_shared_accesses.deleted_at IS NULL", userUuid).
 		Where(db.Connection.Scopes(model.CanvasBelongsToUser(userUuid))).
 		Or(db.Connection.Where("canvas_shared_accesses.user_uuid = ?", userUuid)).
 		Preload("User").
 		Preload("CanvasSharedAccess").
 		Preload("CanvasSharedAccess.User").
 		Preload("CanvasSharedInvitation").
-		First(&canvas, id)
+		First(&canvas)
+
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			error_service.PublicError(c, "Canvas not found", http.StatusNotFound, "id", paramId, "canvas")
+			return
+		}
+		error_service.InternalError(c, result.Error.Error())
+	}
 
 	if canvas.CanvasSharedInvitation != nil {
 		for i, csi := range canvas.CanvasSharedInvitation {
@@ -77,6 +92,8 @@ func Save(c *gin.Context) {
 		}
 	}
 
+	logging.LogDebug("Save", "id", id)
+
 	var canvasData model.CanvasData
 	if err := c.ShouldBindJSON(&canvasData); err != nil {
 		c.Error(err).SetType(gin.ErrorTypeBind)
@@ -89,16 +106,38 @@ func Save(c *gin.Context) {
 		return
 	}
 
-	var canvas model.Canvas = model.Canvas{UserUuid: userUuid, CanvasData: canvasDataJson}
-
+	var canvas model.Canvas = model.Canvas{}
+	var result *gorm.DB
 	if id > 0 {
 		// Update
 		canvas.ID = id
-	}
 
-	result := db.Connection.
-		Scopes(model.CanvasBelongsToUser(userUuid)).
-		Save(&canvas)
+		result = db.Connection.
+			Joins("LEFT JOIN canvas_shared_accesses ON canvas_shared_accesses.canvas_id = canvas.id AND canvas_shared_accesses.user_uuid = ? AND canvas_shared_accesses.deleted_at IS NULL", userUuid).
+			Where(db.Connection.Scopes(model.CanvasBelongsToUser(userUuid))).
+			Or(db.Connection.Where("canvas_shared_accesses.user_uuid = ?", userUuid)).
+			First(&canvas)
+
+		if result.Error != nil {
+			if result.Error == gorm.ErrRecordNotFound {
+				error_service.PublicError(c, "Canvas not found", http.StatusNotFound, "id", paramId, "canvas")
+				return
+			}
+
+			error_service.InternalError(c, result.Error.Error())
+			return
+		}
+
+		canvas.CanvasData = canvasDataJson
+		result = db.Connection.Save(&canvas)
+	} else {
+		canvas.UserUuid = userUuid
+		canvas.CanvasData = canvasDataJson
+
+		result = db.Connection.
+			Where(db.Connection.Scopes(model.CanvasBelongsToUser(userUuid))).
+			Save(&canvas)
+	}
 
 	if result.Error != nil {
 		error_service.InternalError(c, result.Error.Error())
