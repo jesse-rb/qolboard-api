@@ -50,7 +50,6 @@ func WriteToCanvasConnections(canvasId uint64, except *websocket.Conn, data *Can
 	if conns, ok := canvasUserConnMap[canvasId]; ok {
 		// Write to each connection
 		for _, c := range conns {
-			c.WriteJSON(data)
 			if c != except {
 				c.WriteJSON(data)
 			}
