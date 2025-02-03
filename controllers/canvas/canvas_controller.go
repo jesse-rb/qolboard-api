@@ -144,6 +144,13 @@ func Save(c *gin.Context) {
 		return
 	}
 
+	db.Connection.
+		Preload("User").
+		Preload("CanvasSharedAccess").
+		Preload("CanvasSharedAccess.User").
+		Preload("CanvasSharedInvitation").
+		First(&canvas)
+
 	response_service.SetJSON(c, gin.H{
 		"msg":    fmt.Sprintf("Successfully saved canvas with id: %v", canvas.ID),
 		"canvas": canvas,
