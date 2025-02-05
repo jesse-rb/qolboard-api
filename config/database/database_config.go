@@ -2,23 +2,18 @@ package database_config
 
 import (
 	"fmt"
-	"log"
 	"os"
-	canvas_model "qolboard-api/models/canvas"
+	model "qolboard-api/models"
+	"qolboard-api/services/logging"
 
-	slogger "github.com/jesse-rb/slogger-go"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// Declare some loggers
-var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "database_config", log.Lshortfile+log.Ldate);
-var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "database_config", log.Lshortfile+log.Ldate);
-
 var database *Database
 
 func GetDatabase() *Database {
-	return database;
+	return database
 }
 
 type Database struct {
@@ -36,13 +31,15 @@ func ConnectToDatabase() {
 	)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		errorLogger.Log("ConnectToDatabase", "Error connecting to database", err.Error())
+		logging.LogError("ConnectToDatabase", "Error connecting to database", err.Error())
 		panic(1)
 	}
 
 	// Register auto migrations here:
-	// e.g. db.AutoMigrate(&canvas_model.Canvas{})
-	db.AutoMigrate(&canvas_model.Canvas{})
+	// e.g. db.AutoMigrate(&model.Canvas{})
+	db.AutoMigrate(&model.Canvas{})
+	db.AutoMigrate(&model.CanvasSharedInvitation{})
+	db.AutoMigrate(&model.CanvasSharedAccess{})
 
 	database = &Database{Connection: db}
 }
@@ -50,6 +47,6 @@ func ConnectToDatabase() {
 func (db *Database) AutoMigrate(m interface{}) {
 	err := db.Connection.AutoMigrate(&m)
 	if err != nil {
-		errorLogger.Log("AutoMigrate", "Error auto migrating Gorm model", err)
+		logging.LogError("AutoMigrate", "Error auto migrating Gorm model", err)
 	}
 }
