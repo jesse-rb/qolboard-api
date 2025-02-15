@@ -184,6 +184,7 @@ func Delete(c *gin.Context) {
 
 	result := db.Connection.
 		Scopes(model.CanvasBelongsToUser(userUuid)).
+		Select("CanvasSharedAccess", "CanvasSharedInvitation").
 		Delete(&canvas, id)
 
 	if result.Error != nil {
