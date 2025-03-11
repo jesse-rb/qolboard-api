@@ -9,9 +9,5 @@ import (
 func Run(c *gin.Context) {
 	c.Next()
 
-	var code int = response_service.GetCode(c)
-	var response gin.H = response_service.GetJSON(c)
-
-	c.JSON(code, response)
+	response_service.Response(c)
 }
-

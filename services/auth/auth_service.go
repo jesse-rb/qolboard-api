@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"qolboard-api/config"
 	"qolboard-api/services/logging"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,7 @@ import (
 var (
 	domain string = os.Getenv("APP_DOMAIN")
 	secure bool   = true
-	isDev  bool   = os.Getenv("GIN_MODE") == "dev"
+	isDev  bool   = config.IsDev()
 )
 
 type Claims struct {

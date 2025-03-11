@@ -3,24 +3,47 @@ package database_config
 import (
 	"fmt"
 	"os"
-	model "qolboard-api/models"
+	auth_service "qolboard-api/services/auth"
 	"qolboard-api/services/logging"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	"github.com/gin-gonic/gin"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jmoiron/sqlx"
 )
 
-var database *Database
+var db *sqlx.DB
 
-func GetDatabase() *Database {
-	return database
-}
+func DB(c *gin.Context) (*sqlx.Tx, error) {
+	user_uuid := auth_service.GetClaims(c).Subject
 
-type Database struct {
-	Connection *gorm.DB
+	// Begin transaction
+	tx, err := db.Beginx()
+	if err != nil {
+		logging.LogError("DB", "Failed to being database transaction", err.Error())
+		return nil, err
+	}
+
+	// Set the required databse session variables for the transaction, for RLS purposes
+	_, err = tx.Exec(fmt.Sprintf("SET myapp.user_uuid = '%s'", user_uuid))
+	if err != nil {
+		tx.Rollback()
+		logging.LogError("DB", "Failed to SET databse session user_uuid REQUIRED for RLS", err.Error())
+		return nil, err
+	}
+
+	_, err = tx.Exec("SET ROLE anon")
+	if err != nil {
+		tx.Rollback()
+		logging.LogError("DB", "Failed to SET databse session role REQUIRED for RLS", err.Error())
+		return nil, err
+	}
+
+	return tx, err
 }
 
 func ConnectToDatabase() {
+	var err error = nil
+
 	dsn := fmt.Sprintf(
 		"host=%s user=%s dbname=%s password=%s port=%s",
 		os.Getenv("DB_HOST"),
@@ -29,24 +52,10 @@ func ConnectToDatabase() {
 		os.Getenv("DB_PASSWORD"),
 		os.Getenv("DB_PORT"),
 	)
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+
+	db, err = sqlx.Open("pgx", dsn)
 	if err != nil {
 		logging.LogError("ConnectToDatabase", "Error connecting to database", err.Error())
 		panic(1)
-	}
-
-	// Register auto migrations here:
-	// e.g. db.AutoMigrate(&model.Canvas{})
-	db.AutoMigrate(&model.Canvas{})
-	db.AutoMigrate(&model.CanvasSharedInvitation{})
-	db.AutoMigrate(&model.CanvasSharedAccess{})
-
-	database = &Database{Connection: db}
-}
-
-func (db *Database) AutoMigrate(m interface{}) {
-	err := db.Connection.AutoMigrate(&m)
-	if err != nil {
-		logging.LogError("AutoMigrate", "Error auto migrating Gorm model", err)
 	}
 }

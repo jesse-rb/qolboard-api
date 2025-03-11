@@ -15,10 +15,13 @@ type CanvasSharedAccess struct {
 	User                     *User                   `json:"user"`
 }
 
-func CanvasSharedAccessBelongsToCanvas(canvasId uint64) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("canvas_shared_accesses.canvas_id", canvasId)
+func (csa CanvasSharedAccess) BelongsToCanvas(db *gorm.DB, canvasId *uint64) *gorm.DB {
+	if canvasId == nil {
+		db = db.Where("canvas_shared_accesses.canvas_id = canvas.id")
+	} else {
+		db = db.Where("canvas_shared_accesses.canvas_id", *canvasId)
 	}
+	return db
 }
 
 func CanvasSharedAccessBelongsToCanvasSharedInvitation(canvasId uint64) func(db *gorm.DB) *gorm.DB {
@@ -39,8 +42,6 @@ func CanvasSharedAccessLeftJoinCanvasOnCanvasOwner(userUuid string) func(db *gor
 	}
 }
 
-func CanvasSharedAccessBelongsToUser(userUuid string) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("canvas_shared_accesses.user_uuid", userUuid)
-	}
+func (csa CanvasSharedAccess) BelongsToUser(db *gorm.DB, userUuid string) *gorm.DB {
+	return db.Where("canvas_shared_accesses.user_uuid", userUuid)
 }

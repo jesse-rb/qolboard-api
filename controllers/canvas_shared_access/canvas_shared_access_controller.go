@@ -44,7 +44,7 @@ func Index(c *gin.Context) {
 
 	// Canvas ID
 	if queryValues.CanvasId > 0 {
-		query.Scopes(model.CanvasSharedAccessBelongsToCanvas(queryValues.CanvasId))
+		model.CanvasSharedAccess{}.BelongsToCanvas(query, &queryValues.CanvasId)
 	}
 
 	// Pagination
@@ -90,7 +90,7 @@ func Delete(c *gin.Context) {
 	var sharedAccess model.CanvasSharedAccess
 	result := db.Scopes(model.CanvasSharedAccessLeftJoinCanvasOnCanvasOwner(claims.Subject)).
 		Where("canvas.user_uuid", claims.Subject).
-		Or(db.Scopes(model.CanvasSharedAccessBelongsToUser(claims.Subject))).
+		Or(model.CanvasSharedAccess{}.BelongsToUser(db, claims.Subject)).
 		First(&sharedAccess, id)
 
 	if result.Error != nil {

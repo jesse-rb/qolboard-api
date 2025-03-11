@@ -58,3 +58,14 @@ func GetCode(c *gin.Context) int {
 	return code.(int)
 }
 
+func Response(c *gin.Context) {
+	var code int = GetCode(c)
+	var response gin.H = GetJSON(c)
+
+	c.JSON(code, response)
+}
+
+func Abort(c *gin.Context) {
+	Response(c)
+	panic(1)
+}
