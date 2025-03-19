@@ -87,7 +87,7 @@ type DOMMatrixs struct {
 	M44 float64 `json:"m44" binding:"required"`
 }
 
-func (c Canvas) Get(tx *sqlx.Tx, canvasId string) (*Canvas, error) {
+func (c Canvas) Get(tx *sqlx.Tx, canvasId uint64) (*Canvas, error) {
 	canvas := &Canvas{}
 	err := tx.Get(canvas, "SELECT * FROM canvases c WHERE AND c.id = $1 AND deleted_at IS NULL", canvasId)
 	if err != nil {

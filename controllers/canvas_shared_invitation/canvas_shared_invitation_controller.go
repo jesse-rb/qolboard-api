@@ -23,8 +23,6 @@ type IndexQuery struct {
 }
 
 func Create(c *gin.Context) {
-	db := database_config.GetDatabase()
-
 	var claims auth_service.Claims = *auth_service.GetClaims(c)
 
 	var paramCanvasId string = c.Param("canvas_id")
@@ -38,19 +36,17 @@ func Create(c *gin.Context) {
 		return
 	}
 
-	var canvas model.Canvas
-	result := db.Connection.First(&canvas, canvasId)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			error_service.PublicError(c, "Could not find canvas", http.StatusNotFound, "id", paramCanvasId, "canvas")
-			return
-		}
-		error_service.InternalError(c, result.Error.Error())
+	tx, err := database_config.DB(c)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
 		return
 	}
+	tx.Commit()
 
-	if claims.Subject != canvas.UserUuid {
-		error_service.PublicError(c, "Only the canvas owner can perform this action", http.StatusUnauthorized, "id", paramCanvasId, "canvas")
+	canvas, err := model.Canvas{}.Get(tx, canvasId)
+	if err != nil {
+		tx.Rollback()
+		error_service.PublicError(c, "Could not find canvas", http.StatusNotFound, "id", paramCanvasId, "canvas")
 		return
 	}
 
@@ -62,14 +58,21 @@ func Create(c *gin.Context) {
 		return
 	}
 
-	result = db.Connection.
-		Scopes(model.CanvasSharedInvitationBelongsToCanvas(canvasId)).
-		Save(canvasSharedInvitation)
-
-	if result.Error != nil {
-		error_service.InternalError(c, result.Error.Error())
+	tx, err = database_config.DB(c)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
 		return
 	}
+	tx.Commit()
+	// result = db.Connection.
+	// 	Scopes(model.CanvasSharedInvitationBelongsToCanvas(canvasId)).
+	// 	Save(canvasSharedInvitation)
+	//
+	// if result.Error != nil {
+	// 	error_service.InternalError(c, result.Error.Error())
+	// 	return
+	// }
 
 	response_service.SetJSON(c, gin.H{
 		"data": canvasSharedInvitation.Response(),
