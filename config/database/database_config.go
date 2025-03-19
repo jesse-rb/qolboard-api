@@ -24,17 +24,11 @@ func DB(c *gin.Context) (*sqlx.Tx, error) {
 	}
 
 	// Set the required databse session variables for the transaction, for RLS purposes
-	_, err = tx.Exec(fmt.Sprintf("SET myapp.user_uuid = '%s'", user_uuid))
+	// _, err = tx.Exec(fmt.Sprintf("SET myapp.user_uuid = '%s'", user_uuid))
+	_, err = tx.Exec("SELECT set_user_uuid($1)", user_uuid)
 	if err != nil {
 		tx.Rollback()
 		logging.LogError("DB", "Failed to SET databse session user_uuid REQUIRED for RLS", err.Error())
-		return nil, err
-	}
-
-	_, err = tx.Exec("SET ROLE anon")
-	if err != nil {
-		tx.Rollback()
-		logging.LogError("DB", "Failed to SET databse session role REQUIRED for RLS", err.Error())
 		return nil, err
 	}
 
