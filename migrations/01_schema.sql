@@ -1,5 +1,9 @@
 -- +goose up
 
+--
+-- Useful functions
+--
+
 -- +goose StatementBegin
 CREATE OR REPLACE FUNCTION get_user_uuid() RETURNS uuid AS $$
     SELECT current_setting('myapp.user_uuid')::uuid;
@@ -21,6 +25,9 @@ CREATE OR REPLACE FUNCTION reset_user_uuid() RETURNS void AS $$
 $$ LANGUAGE SQL;
 -- +goose StatementEnd
 
+--
+-- canvases table
+--
 CREATE TABLE IF NOT EXISTS "public"."canvases" (
     "id" bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     "created_at" timestamp NOT NULL,
@@ -30,8 +37,7 @@ CREATE TABLE IF NOT EXISTS "public"."canvases" (
     "canvas_data" "jsonb"
 );
 
-ALTER TABLE "public"."canvases" ENABLE ROW LEVEL SECURITY;
-
+-- canvas_shared_invitations table
 CREATE TABLE IF NOT EXISTS "public"."canvas_shared_invitations" (
     "id" bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     "created_at" timestamp,
@@ -42,7 +48,7 @@ CREATE TABLE IF NOT EXISTS "public"."canvas_shared_invitations" (
     "user_uuid" "uuid" NOT NULL REFERENCES "auth"."users"
 );
 
-
+-- canvas_shared_accesses table
 CREATE TABLE IF NOT EXISTS "public"."canvas_shared_accesses" (
     "id" bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     "created_at" timestamp,
@@ -52,6 +58,12 @@ CREATE TABLE IF NOT EXISTS "public"."canvas_shared_accesses" (
     "canvas_id" bigint NOT NULL REFERENCES "public"."canvases",
     "canvas_shared_invitation_id" bigint NOT NULL REFERENCES "public"."canvas_shared_invitations"
 );
+
+--
+-- canvases RLS policies
+--
+
+ALTER TABLE "public"."canvases" ENABLE ROW LEVEL SECURITY;
 
 -- SELECT Policy
 CREATE POLICY "User is canvas owner"
@@ -100,9 +112,32 @@ WITH CHECK (
     "user_uuid" = get_user_uuid()
 );
 
+--
+-- canvas_shared_invitations policies
+--
+
+ALTER TABLE "public"."canvas_shared_invitations" ENABLE ROW LEVEL SECURITY;
+
+-- INSERT policy
+CREATE POLICY "User can create canvas shared invitations for their own canvases"
+ON "public"."canvas_shared_invitations"
+AS PERMISSIVE
+FOR INSERT
+TO qolboard_api
+WITH CHECK (
+    "user_uuid" = get_user_uuid()
+    AND EXISTS (
+        SELECT *
+        FROM "public"."canvases" c
+        WHERE c.id = "public"."canvas_shared_invitations".canvas_id
+        AND c.user_uuid = "public"."canvas_shared_invitations".user_uuid
+    )
+);
+
 -- +goose down
-DROP POLICY "User can update their canvas" ON "public"."canvases";
-DROP POLICY "User has access to canvas" ON "public"."canvases";
+DROP POLICY IF EXISTS "User can create canvas shared invitations for their own canvases" ON "public"."canvas_shared_invitations";
+DROP POLICY IF EXISTS "User can update their canvas" ON "public"."canvases";
+DROP POLICY IF EXISTS "User has access to canvas" ON "public"."canvases";
  
 
 DROP TABLE IF EXISTS "public"."canvas_shared_accesses";

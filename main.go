@@ -7,6 +7,7 @@ import (
 	database_config "qolboard-api/config/database"
 	auth_controller "qolboard-api/controllers/auth"
 	canvas_controller "qolboard-api/controllers/canvas"
+	canvas_shared_invitation_controller "qolboard-api/controllers/canvas_shared_invitation"
 	user_controller "qolboard-api/controllers/user"
 	auth_middleware "qolboard-api/middleware/auth"
 	cors_middleware "qolboard-api/middleware/cors"
@@ -72,7 +73,7 @@ func main() {
 		// rUser.GET("/canvas/:canvas_id/accept_invite/:code", canvas_shared_invitation_controller.AcceptInvite)
 		//
 		rUser.POST("/canvas/:canvas_id/shared_invitation", canvas_shared_invitation_controller.Create)
-		rUser.GET("/canvas/shared_invitation", canvas_shared_invitation_controller.Index)
+		// rUser.GET("/canvas/shared_invitation", canvas_shared_invitation_controller.Index)
 		// rUser.DELETE("/canvas/shared_invitation/:canvas_shared_invitation_id", canvas_shared_invitation_controller.Delete)
 		//
 		// rUser.GET("/canvas/shared_access", canvas_shared_access_controller.Index)

@@ -6,7 +6,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"gorm.io/datatypes"
-	"gorm.io/gorm"
 )
 
 const (
@@ -134,10 +133,10 @@ func (c *Canvas) Delete(tx *sqlx.Tx) error {
 	return err
 }
 
-func (c Canvas) BelongsToUser(db *gorm.DB, userUuid string) *gorm.DB {
-	return db.Where("canvas.user_uuid", userUuid)
-}
-
-func (c Canvas) LeftJoinCanvasSharedAccessOnUser(db *gorm.DB, userUuid string) *gorm.DB {
-	return db.Joins("LEFT JOIN canvas_shared_accesses ON canvas_shared_accesses.user_uuid = ?", userUuid)
-}
+// func (c Canvas) BelongsToUser(db *gorm.DB, userUuid string) *gorm.DB {
+// 	return db.Where("canvas.user_uuid", userUuid)
+// }
+//
+// func (c Canvas) LeftJoinCanvasSharedAccessOnUser(db *gorm.DB, userUuid string) *gorm.DB {
+// 	return db.Joins("LEFT JOIN canvas_shared_accesses ON canvas_shared_accesses.user_uuid = ?", userUuid)
+// }
