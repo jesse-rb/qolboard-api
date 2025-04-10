@@ -6,6 +6,7 @@ import (
 	"qolboard-api/services/logging"
 )
 
+// Generates a random code
 func GenerateCode(len uint) (string, error) {
 	// Number of bytes needed for len base64 encoded chars
 	lenBytes := (len*6 + 7) / 8

@@ -7,15 +7,17 @@ import (
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	response_service "qolboard-api/services/response"
+	trivial_service "qolboard-api/services/trivial"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
 type IndexQuery struct {
-	CanvasId uint64 `form:"canvas_id"`
-	Page     uint64 `form:"page"`
-	Limit    uint64 `form:"limit"`
+	CanvasId uint64   `form:"canvas_id"`
+	Page     uint64   `form:"page"`
+	Limit    uint64   `form:"limit"`
+	With     []string `form:"with[]" binding:"dive,oneof=canvas canvas_shared_access"`
 }
 
 func Create(c *gin.Context) {
@@ -32,20 +34,6 @@ func Create(c *gin.Context) {
 		return
 	}
 
-	tx, err := database_config.DB(c)
-	if err != nil {
-		error_service.InternalError(c, err.Error())
-		return
-	}
-	tx.Commit()
-
-	// canvas, err := model.Canvas{}.Get(tx, canvasId)
-	// if err != nil {
-	// 	tx.Rollback()
-	// 	error_service.PublicError(c, "Could not find canvas", http.StatusNotFound, "id", paramCanvasId, "canvas")
-	// 	return
-	// }
-
 	var canvasSharedInvitation *model.CanvasSharedInvitation
 
 	canvasSharedInvitation, err = model.NewCanvasSharedInvitation(claims.Subject, canvasId)
@@ -54,7 +42,7 @@ func Create(c *gin.Context) {
 		return
 	}
 
-	tx, err = database_config.DB(c)
+	tx, err := database_config.DB(c)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		tx.Rollback()
@@ -75,56 +63,65 @@ func Create(c *gin.Context) {
 	})
 }
 
-// func Index(c *gin.Context) {
-// 	// Get user claims
-// 	claims := auth_service.GetClaims(c)
-//
-// 	// Get query params
-// 	var queryValues IndexQuery
-// 	if err := c.ShouldBindQuery(&queryValues); err != nil {
-// 		c.Error(err).SetType(gin.ErrorTypeBind)
-// 		return
-// 	}
-//
-// 	// Query with filters
-// 	db := database_config.GetDatabase()
-//
-// 	query := db.Connection.Model(&model.CanvasSharedInvitation{})
-//
-// 	// User UUID
-// 	query.Scopes(model.CanvasSharedInvitationBelongsToUser(claims.Subject))
-//
-// 	// Canvas ID
-// 	if queryValues.CanvasId > 0 {
-// 		query.Scopes(model.CanvasSharedInvitationBelongsToCanvas(queryValues.CanvasId))
-// 	}
-//
-// 	// Pagination
-// 	page := 0
-// 	limit := 100
-// 	if queryValues.Page > 0 {
-// 		page = int(queryValues.Page)
-// 	}
-// 	if queryValues.Limit > 0 {
-// 		limit = min(limit, int(queryValues.Limit))
-// 	}
-//
-// 	query.Limit(limit)
-// 	query.Offset(limit * page)
-//
-// 	var data []*model.CanvasSharedInvitation
-// 	query.Find(&data)
-//
-// 	// Format response
-// 	for i, item := range data {
-// 		data[i] = item.Response()
-// 	}
-//
-// 	response_service.SetJSON(c, gin.H{
-// 		"data": data,
-// 	})
-// }
-//
+func Index(c *gin.Context) {
+	// Get user claims
+	// claims := auth_service.GetClaims(c)
+
+	// Get query params
+	var queryValues IndexQuery
+	if err := c.ShouldBindQuery(&queryValues); err != nil {
+		c.Error(err).SetType(gin.ErrorTypeBind)
+		return
+	}
+
+	// Query with filters
+	tx, err := database_config.DB(c)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
+	}
+
+	data, err := model.CanvasSharedInvitation{}.GetAllForCanvas(tx, queryValues.CanvasId)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
+	}
+
+	// Load relations
+	for i := range data {
+		if trivial_service.InArray("canvas", queryValues.With) {
+			data[i].Canvas, err = model.Canvas{}.Get(tx, queryValues.CanvasId)
+			if err != nil {
+				error_service.InternalError(c, err.Error())
+				tx.Rollback()
+				return
+			}
+		}
+
+		if trivial_service.InArray("cnavas_shared_access", queryValues.With) {
+			data[i].CanvasSharedAccess, err = model.CanvasSharedAccess{}.GetAllForCanvasSharedInvitation(tx, data[i].ID)
+			if err != nil {
+				error_service.InternalError(c, err.Error())
+				tx.Rollback()
+				return
+			}
+		}
+	}
+
+	tx.Commit()
+
+	// Format response
+	for i := range data {
+		data[i].Response()
+	}
+
+	response_service.SetJSON(c, gin.H{
+		"data": data,
+	})
+}
+
 // func Delete(c *gin.Context) {
 // 	claims := auth_service.GetClaims(c)
 //

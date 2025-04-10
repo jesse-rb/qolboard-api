@@ -134,7 +134,18 @@ WITH CHECK (
     )
 );
 
+-- SELECT policy
+CREATE POLICY "User can select their canvas shared invitations"
+ON "public"."canvas_shared_invitations"
+AS PERMISSIVE
+FOR SELECT
+TO qolboard_api
+USING (
+    "canvas_shared_invitations"."user_uuid" = get_user_uuid()
+);
+
 -- +goose down
+DROP POLICY IF EXISTS "User can select their canvas shared invitations" ON "public"."canvas_shared_invitations";
 DROP POLICY IF EXISTS "User can create canvas shared invitations for their own canvases" ON "public"."canvas_shared_invitations";
 DROP POLICY IF EXISTS "User can update their canvas" ON "public"."canvases";
 DROP POLICY IF EXISTS "User has access to canvas" ON "public"."canvases";

@@ -11,11 +11,11 @@ import (
 
 type CanvasSharedInvitation struct {
 	Model
-	Code               string              `json:"-" db:"code" gorm:"not null;index:,unique"`
-	CanvasId           uint64              `json:"canvas_id" db:"canvas_id" gorm:"not null"`
-	UserUuid           string              `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:id;type:uuid;not null;index"`
-	Canvas             *Canvas             `json:"canvas" db:"canvas"`
-	CanvasSharedAccess *CanvasSharedAccess `json:"canvas_shared_access" db:"canvas_shared_access"`
+	Code               string                `json:"-" db:"code" gorm:"not null;index:,unique"`
+	CanvasId           uint64                `json:"canvas_id" db:"canvas_id" gorm:"not null"`
+	UserUuid           string                `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:id;type:uuid;not null;index"`
+	Canvas             *Canvas               `json:"canvas"`
+	CanvasSharedAccess []*CanvasSharedAccess `json:"canvas_shared_access"`
 
 	InviteLink string `json:"link" gorm:"-"` // Calculated on the fly
 }
@@ -60,6 +60,16 @@ func (csi *CanvasSharedInvitation) Save(tx *sqlx.Tx) error {
 	}
 
 	return nil
+}
+
+func (c CanvasSharedInvitation) GetAllForCanvas(tx *sqlx.Tx, canvasId uint64) ([]CanvasSharedInvitation, error) {
+	var canvasSharedInvitiations []CanvasSharedInvitation
+	err := tx.Select(&canvasSharedInvitiations, "SELECT * FROM canvas_shared_invitations csi WHERE canvas_id = $1 AND deleted_at IS NULL", canvasId)
+	if err != nil {
+		return nil, err
+	}
+
+	return canvasSharedInvitiations, err
 }
 
 func (sharedInvitation *CanvasSharedInvitation) Response() *CanvasSharedInvitation {

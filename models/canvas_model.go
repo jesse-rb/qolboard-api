@@ -88,7 +88,7 @@ type DOMMatrixs struct {
 
 func (c Canvas) Get(tx *sqlx.Tx, canvasId uint64) (*Canvas, error) {
 	canvas := &Canvas{}
-	err := tx.Get(canvas, "SELECT * FROM canvases c WHERE AND c.id = $1 AND deleted_at IS NULL", canvasId)
+	err := tx.Get(canvas, "SELECT * FROM canvases c WHERE c.id = $1 AND deleted_at IS NULL", canvasId)
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	database_config "qolboard-api/config/database"
+	controller "qolboard-api/controllers"
 	model "qolboard-api/models"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
@@ -14,7 +15,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type indexParams struct {
+	controller.IndexParams
+	With []string `form:"with[]" binding:"dive,oneof=canvas_shared_invitiations canvas_shared_accesses user"`
+}
+
 func Index(c *gin.Context) {
+	var params indexParams
+
+	if err := c.ShouldBindQuery(params); err != nil {
+		error_service.ValidationError(c, err)
+		return
+	}
+
 	tx, err := database_config.DB(c)
 	if err != nil {
 		error_service.InternalError(c, err.Error())

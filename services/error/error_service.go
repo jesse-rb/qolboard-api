@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"qolboard-api/services/logging"
+	trivial_service "qolboard-api/services/trivial"
 	"reflect"
 	"strings"
 
@@ -40,6 +41,10 @@ func SetUpValidator() {
 	}
 }
 
+func ValidationError(c *gin.Context, err error) {
+	c.Error(err).SetType(gin.ErrorTypeBind)
+}
+
 func PublicError(c *gin.Context, message string, code int, field string, value string, resource string) {
 	err := c.Error(errors.New(message))
 	err.SetType(gin.ErrorTypePublic)
@@ -63,7 +68,7 @@ func InternalError(c *gin.Context, message string) {
 }
 
 func HandleGinError(err gin.Error) (code int, formatted []*Error) {
-	logging.LogInfo("HandleGinError", "Handling gin error", gin.H{
+	logging.LogInfo("error service", "We have encountered an error.", gin.H{
 		"error": err.Error(),
 	})
 
@@ -111,9 +116,30 @@ func newValidationErrors(err gin.Error) (int, []*Error) {
 	if ok { // Check if validation error
 		for _, v := range validationErrors {
 			var field string = v.Field()
-			var value string = fmt.Sprintf("%s", v.Value())
+			var value string = fmt.Sprintf("%v", v.Value())
+			var fieldEnglish string = trivial_service.UcFirst(strings.Join(strings.Split(field, "_"), " "))
 			var tag string = v.Tag()
-			var message string = fmt.Sprintf("field: %s with value: %s failed validation: %s", field, value, tag)
+
+			// Default validation error msg
+			var message string = fmt.Sprintf("field: %s with value: %s failed validation: %s", fieldEnglish, value, tag)
+
+			// Detailed validation error msg
+			if v.Tag() == "required" {
+				message = fmt.Sprintf("%s is a required field.", fieldEnglish)
+			}
+			if v.Tag() == "email" {
+				message = fmt.Sprintf("%s must be a valid email address.", fieldEnglish)
+			}
+			if v.Tag() == "oneof" {
+				message = fmt.Sprintf("%s must of one of: %s", fieldEnglish, strings.Join(strings.Split(v.Param(), " "), ", "))
+			}
+			if v.Tag() == "lte" {
+				message = fmt.Sprintf("%s must be less than or equal to %s", fieldEnglish, v.Param())
+			}
+			if v.Tag() == "gte" {
+				message = fmt.Sprintf("%s must be greater than or equal to %s", fieldEnglish, v.Param())
+			}
+
 			var newError *Error = &Error{
 				Message: message,
 				Field:   field,

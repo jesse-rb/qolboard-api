@@ -1,6 +1,7 @@
 package model
 
 import (
+	"github.com/jmoiron/sqlx"
 	"gorm.io/gorm"
 )
 
@@ -44,4 +45,14 @@ func CanvasSharedAccessLeftJoinCanvasOnCanvasOwner(userUuid string) func(db *gor
 
 func (csa CanvasSharedAccess) BelongsToUser(db *gorm.DB, userUuid string) *gorm.DB {
 	return db.Where("canvas_shared_accesses.user_uuid", userUuid)
+}
+
+func (c CanvasSharedAccess) GetAllForCanvasSharedInvitation(tx *sqlx.Tx, canvasSharedInvitationId uint64) ([]*CanvasSharedAccess, error) {
+	var canvasSharedAccesses []*CanvasSharedAccess
+	err := tx.Select(&canvasSharedAccesses, "SELECT * FROM canvas_shared_accesses csa WHERE csa.canvas_shared_invitation_id = $1 AND deleted_at IS NULL", canvasSharedInvitationId)
+	if err != nil {
+		return nil, err
+	}
+
+	return canvasSharedAccesses, err
 }
