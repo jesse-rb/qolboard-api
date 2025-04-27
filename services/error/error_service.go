@@ -4,13 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"qolboard-api/services/logging"
-	trivial_service "qolboard-api/services/trivial"
 	"reflect"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
+	imissphpgo "github.com/jesse-rb/imissphp-go"
 )
 
 type ErrorMeta struct {
@@ -117,7 +117,7 @@ func newValidationErrors(err gin.Error) (int, []*Error) {
 		for _, v := range validationErrors {
 			var field string = v.Field()
 			var value string = fmt.Sprintf("%v", v.Value())
-			var fieldEnglish string = trivial_service.UcFirst(strings.Join(strings.Split(field, "_"), " "))
+			var fieldEnglish string = imissphpgo.UcFirst(strings.Join(strings.Split(field, "_"), " "))
 			var tag string = v.Tag()
 
 			// Default validation error msg

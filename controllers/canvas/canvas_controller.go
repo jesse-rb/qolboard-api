@@ -9,6 +9,7 @@ import (
 	model "qolboard-api/models"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
+	generator_service "qolboard-api/services/generator"
 	response_service "qolboard-api/services/response"
 	"strconv"
 
@@ -17,13 +18,19 @@ import (
 
 type indexParams struct {
 	controller.IndexParams
-	With []string `form:"with[]" binding:"dive,oneof=canvas_shared_invitiations canvas_shared_accesses user"`
+	With []string `form:"with[]" binding:"dive,oneof=canvas_shared_invitations canvas_shared_accesses user"`
 }
 
 func Index(c *gin.Context) {
-	var params indexParams
+	var params indexParams = indexParams{
+		IndexParams: controller.IndexParams{
+			Page:  1,
+			Limit: 100,
+		},
+		With: make([]string, 0),
+	}
 
-	if err := c.ShouldBindQuery(params); err != nil {
+	if err := c.ShouldBindQuery(&params); err != nil {
 		error_service.ValidationError(c, err)
 		return
 	}
@@ -35,15 +42,17 @@ func Index(c *gin.Context) {
 	}
 	defer tx.Commit()
 
-	canvases, err := model.Canvas{}.GetAll(tx)
+	canvases, err := model.Canvas{}.GetAll(tx, params.Limit, params.Page, params.With)
 	if err != nil {
 		tx.Rollback()
 		error_service.InternalError(c, err.Error())
 		return
 	}
 
+	resp := generator_service.BuildResponse(canvases)
+
 	response_service.SetJSON(c, gin.H{
-		"data": canvases,
+		"data": resp,
 	})
 }
 

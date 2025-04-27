@@ -24,3 +24,7 @@ func LogError(tag string, msg string, data interface{}) {
 func LogDebug(tag string, msg string, data interface{}) {
 	debugLogger.Log(tag, msg, data)
 }
+
+func Here() {
+	debugLogger.Log("HERE", "", nil)
+}

@@ -7,10 +7,10 @@ import (
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	response_service "qolboard-api/services/response"
-	trivial_service "qolboard-api/services/trivial"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	imissphpgo "github.com/jesse-rb/imissphp-go"
 )
 
 type IndexQuery struct {
@@ -58,8 +58,10 @@ func Create(c *gin.Context) {
 
 	tx.Commit()
 
+	canvasSharedInvitation.Response()
+
 	response_service.SetJSON(c, gin.H{
-		"data": canvasSharedInvitation.Response(),
+		"data": canvasSharedInvitation,
 	})
 }
 
@@ -91,7 +93,7 @@ func Index(c *gin.Context) {
 
 	// Load relations
 	for i := range data {
-		if trivial_service.InArray("canvas", queryValues.With) {
+		if imissphpgo.InArray("canvas", queryValues.With) {
 			data[i].Canvas, err = model.Canvas{}.Get(tx, queryValues.CanvasId)
 			if err != nil {
 				error_service.InternalError(c, err.Error())
@@ -100,7 +102,7 @@ func Index(c *gin.Context) {
 			}
 		}
 
-		if trivial_service.InArray("cnavas_shared_access", queryValues.With) {
+		if imissphpgo.InArray("cnavas_shared_access", queryValues.With) {
 			data[i].CanvasSharedAccess, err = model.CanvasSharedAccess{}.GetAllForCanvasSharedInvitation(tx, data[i].ID)
 			if err != nil {
 				error_service.InternalError(c, err.Error())

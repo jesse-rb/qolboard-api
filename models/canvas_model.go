@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/jesse-rb/imissphp-go"
 	"github.com/jmoiron/sqlx"
 	"gorm.io/datatypes"
 )
@@ -17,11 +18,11 @@ const (
 
 type Canvas struct {
 	Model
-	UserUuid               string                    `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:Uuid;type:uuid;not null;index"`
-	CanvasData             datatypes.JSON            `json:"canvas_data" db:"canvas_data"`
-	CanvasSharedAccess     []*CanvasSharedAccess     `json:"canvas_shared_accesses" db:"canvas_shared_accesses"`
-	CanvasSharedInvitation []*CanvasSharedInvitation `json:"canvas_shared_invitations" db:"canvas_shared_invitations"`
-	User                   *User                     `json:"user" db:"user"`
+	UserUuid                string                   `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:Uuid;type:uuid;not null;index"`
+	CanvasData              datatypes.JSON           `json:"canvas_data" db:"canvas_data"`
+	CanvasSharedAccesses    []CanvasSharedAccess     `json:"canvas_shared_accesses" x_ismodel:"true"`
+	CanvasSharedInvitations []CanvasSharedInvitation `json:"canvas_shared_invitations" x_ismodel:"true"`
+	User                    *User                    `json:"user" x_ismodel:"true"`
 }
 
 type CanvasData struct {
@@ -86,6 +87,116 @@ type DOMMatrixs struct {
 	M44 float64 `json:"m44" binding:"required"`
 }
 
+var relationLoaders RelationLoaders[Canvas] = RelationLoaders[Canvas]{
+	BelongsTo: map[string]BelongsToLoader[Canvas]{
+		"user": {
+			Loader: func(tx *sqlx.Tx, model Canvas) error {
+				user, err := User{}.Get(tx, model.UserUuid)
+				if err != nil {
+					return err
+				}
+				model.User = user
+				return nil
+			},
+			BatchLoader: func(tx *sqlx.Tx, models []Canvas) error {
+				// Get User uuids
+				userUuids := []string{}
+				for _, canvas := range models {
+					userUuids = append(userUuids, canvas.UserUuid)
+				}
+
+				// Get users by uuids
+				users := []User{}
+				query, args, err := sqlx.In("SELECT * FROM view_users u WHERE u.id IN (?);", userUuids)
+				if err != nil {
+					return err
+				}
+
+				query = tx.Rebind(query)
+				err = tx.Select(&users, query, args...)
+				if err != nil {
+					return err
+				}
+
+				// Key users by uuid
+				usersMap := map[string]*User{}
+				for _, user := range users {
+					usersMap[user.Uuid] = &user
+				}
+
+				// Mix in
+				for i := range models {
+					models[i].User = usersMap[models[i].UserUuid]
+				}
+
+				return nil
+			},
+		},
+	},
+	HasMany: map[string]HasManyLoader[Canvas]{
+		"canvas_shared_invitations": {
+			Loader: func(tx *sqlx.Tx, model Canvas) error {
+				canvasSharedInvitations, err := CanvasSharedInvitation{}.GetAllForCanvas(tx, model.ID)
+				if err != nil {
+					return err
+				}
+
+				model.CanvasSharedInvitations = canvasSharedInvitations
+
+				return nil
+			},
+			BatchLoader: func(tx *sqlx.Tx, models []Canvas) error {
+				// Get all canvas shared invitation ids
+				canvasIds := make([]uint64, 0)
+				for _, c := range models {
+					canvasIds = append(canvasIds, c.ID)
+				}
+
+				// Get canvas shared invitations by canvas ids
+				var csiSlice []CanvasSharedInvitation
+				query, args, err := sqlx.In("SELECT * FROM canvas_shared_invitations csi WHERE csi.canvas_id IN (?);", canvasIds)
+				if err != nil {
+					return err
+				}
+				query = tx.Rebind(query)
+				err = tx.Select(&csiSlice, query, args...)
+				if err != nil {
+					return err
+				}
+
+				// Key csiList by canvas id
+				csiMap := make(map[uint64][]CanvasSharedInvitation, 0)
+				for _, csi := range csiSlice {
+					if _, ok := csiMap[csi.CanvasId]; !ok {
+						csiMap[csi.CanvasId] = make([]CanvasSharedInvitation, 0)
+					}
+
+					csiMap[csi.CanvasId] = append(csiMap[csi.CanvasId], csi)
+				}
+
+				// Mix in
+				for i := range models {
+					if csiSlice, ok := csiMap[models[i].ID]; ok {
+						models[i].CanvasSharedInvitations = csiSlice
+					}
+				}
+
+				return nil
+			},
+		},
+	},
+}
+
+func (c Canvas) LoadRelations(tx *sqlx.Tx, with []string) error {
+	err := genericRelationsLoader(relationLoaders, c, tx, with)
+	return err
+}
+
+func LoadBatchRelations(canvases []Canvas, tx *sqlx.Tx, with []string) error {
+	err := genericBatchRelationsLoader(relationLoaders, canvases, tx, with)
+	return err
+}
+
 func (c Canvas) Get(tx *sqlx.Tx, canvasId uint64) (*Canvas, error) {
 	canvas := &Canvas{}
 	err := tx.Get(canvas, "SELECT * FROM canvases c WHERE c.id = $1 AND deleted_at IS NULL", canvasId)
@@ -96,9 +207,15 @@ func (c Canvas) Get(tx *sqlx.Tx, canvasId uint64) (*Canvas, error) {
 	return canvas, nil
 }
 
-func (c Canvas) GetAll(tx *sqlx.Tx) ([]Canvas, error) {
+func (c Canvas) GetAll(tx *sqlx.Tx, limit int, page int, with []string) ([]Canvas, error) {
+	offset := max(page-1, 0) * limit
 	var canvases []Canvas
-	err := tx.Select(&canvases, "SELECT * FROM canvases c WHERE deleted_at IS NULL")
+	err := tx.Select(&canvases, "SELECT * FROM canvases c WHERE deleted_at IS NULL LIMIT $1 OFFSET $2", limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	err = LoadBatchRelations(canvases, tx, with)
 	if err != nil {
 		return nil, err
 	}
@@ -140,3 +257,9 @@ func (c *Canvas) Delete(tx *sqlx.Tx) error {
 // func (c Canvas) LeftJoinCanvasSharedAccessOnUser(db *gorm.DB, userUuid string) *gorm.DB {
 // 	return db.Joins("LEFT JOIN canvas_shared_accesses ON canvas_shared_accesses.user_uuid = ?", userUuid)
 // }
+
+func (c Canvas) Response() map[string]any {
+	// r := c.Model.Response()
+	r := imissphp.ToMap(c)
+	return r
+}

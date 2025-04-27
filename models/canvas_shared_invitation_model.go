@@ -6,6 +6,7 @@ import (
 	service "qolboard-api/services"
 	"time"
 
+	"github.com/jesse-rb/imissphp-go"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -72,10 +73,10 @@ func (c CanvasSharedInvitation) GetAllForCanvas(tx *sqlx.Tx, canvasId uint64) ([
 	return canvasSharedInvitiations, err
 }
 
-func (sharedInvitation *CanvasSharedInvitation) Response() *CanvasSharedInvitation {
-	sharedInvitation.InviteLink = sharedInvitation.buildInviteLink()
-	sharedInvitation.Code = ""
-	return sharedInvitation
+func (csi CanvasSharedInvitation) Response() map[string]any {
+	csi.InviteLink = csi.buildInviteLink()
+	r := imissphp.ToMap(csi)
+	return r
 }
 
 func (sharedInvitation *CanvasSharedInvitation) buildInviteLink() string {

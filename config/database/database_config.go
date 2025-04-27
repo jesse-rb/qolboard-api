@@ -11,20 +11,29 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-var db *sqlx.DB
+var (
+	db     *sqlx.DB
+	dbPriv *sqlx.DB
+)
 
 func DB(c *gin.Context) (*sqlx.Tx, error) {
+	return beginDbTransaction(c)
+}
+
+func beginDbTransaction(c *gin.Context) (*sqlx.Tx, error) {
 	user_uuid := auth_service.GetClaims(c).Subject
 
 	// Begin transaction
-	tx, err := db.Beginx()
+	var tx *sqlx.Tx
+	var err error
+
+	tx, err = db.Beginx()
 	if err != nil {
 		logging.LogError("DB", "Failed to being database transaction", err.Error())
 		return nil, err
 	}
 
 	// Set the required databse session variables for the transaction, for RLS purposes
-	// _, err = tx.Exec(fmt.Sprintf("SET myapp.user_uuid = '%s'", user_uuid))
 	_, err = tx.Exec("SELECT set_user_uuid($1)", user_uuid)
 	if err != nil {
 		tx.Rollback()
@@ -38,13 +47,19 @@ func DB(c *gin.Context) (*sqlx.Tx, error) {
 func ConnectToDatabase() {
 	var err error = nil
 
+	host := os.Getenv("DB_HOST")
+	name := os.Getenv("DB_NAME")
+	port := os.Getenv("DB_PORT")
+	username := os.Getenv("DB_USERNAME")
+	password := os.Getenv("DB_PASSWORD")
+
 	dsn := fmt.Sprintf(
 		"host=%s user=%s dbname=%s password=%s port=%s",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_USERNAME"),
-		os.Getenv("DB_NAME"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_PORT"),
+		host,
+		username,
+		name,
+		password,
+		port,
 	)
 
 	db, err = sqlx.Open("pgx", dsn)
