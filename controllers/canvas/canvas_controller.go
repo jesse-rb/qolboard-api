@@ -7,6 +7,7 @@ import (
 	database_config "qolboard-api/config/database"
 	controller "qolboard-api/controllers"
 	model "qolboard-api/models"
+	canvas_model "qolboard-api/models/canvas"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	generator_service "qolboard-api/services/generator"
@@ -42,12 +43,14 @@ func Index(c *gin.Context) {
 	}
 	defer tx.Commit()
 
-	canvases, err := model.Canvas{}.GetAll(tx, params.Limit, params.Page, params.With)
+	canvases, err := canvas_model.GetAll(tx, params.Limit, params.Page, params.With)
 	if err != nil {
 		tx.Rollback()
 		error_service.InternalError(c, err.Error())
 		return
 	}
+
+	canvas_model.LoadBatchRelations(canvases, tx, params.With)
 
 	resp := generator_service.BuildResponse(canvases)
 
@@ -113,7 +116,7 @@ func Save(c *gin.Context) {
 		}
 	}
 
-	var canvasData model.CanvasData
+	var canvasData canvas_model.CanvasData
 	if err := c.ShouldBindJSON(&canvasData); err != nil {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return

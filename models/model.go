@@ -8,9 +8,9 @@ import (
 )
 
 type (
-	FuncLoadBelongsTo[T any] func(tx *sqlx.Tx, m T) error
-	FuncLoadHasOne[T any]    func(tx *sqlx.Tx, m T) error
-	FuncLoadHasMany[T any]   func(tx *sqlx.Tx, m T) error
+	FuncLoadBelongsTo[T any] func(tx *sqlx.Tx, m *T) error
+	FuncLoadHasOne[T any]    func(tx *sqlx.Tx, m *T) error
+	FuncLoadHasMany[T any]   func(tx *sqlx.Tx, m *T) error
 
 	FuncBatchLoadBelongsTo[T any] func(tx *sqlx.Tx, m []T) error
 	FuncBatchLoadHasOne[T any]    func(tx *sqlx.Tx, m []T) error
@@ -37,7 +37,6 @@ type RelationLoaders[T any] struct {
 }
 
 type Modelable interface {
-	LoadRelations(tx *sqlx.Tx, with []string) error
 	Response() map[string]any
 }
 
@@ -57,7 +56,7 @@ func (m Model) Response() map[string]any {
 	return r
 }
 
-func genericRelationsLoader[T any](relationLoaders RelationLoaders[T], model T, tx *sqlx.Tx, with []string) error {
+func GenericRelationsLoader[T any](relationLoaders RelationLoaders[T], model *T, tx *sqlx.Tx, with []string) error {
 	var err error
 
 	for _, w := range with {
@@ -87,7 +86,7 @@ func genericRelationsLoader[T any](relationLoaders RelationLoaders[T], model T, 
 	return nil
 }
 
-func genericBatchRelationsLoader[T any](relationLoaders RelationLoaders[T], models []T, tx *sqlx.Tx, with []string) error {
+func GenericBatchRelationsLoader[T any](relationLoaders RelationLoaders[T], models []T, tx *sqlx.Tx, with []string) error {
 	var err error
 
 	for _, w := range with {

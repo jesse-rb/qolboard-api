@@ -4,13 +4,13 @@ import (
 	"net/http"
 	database_config "qolboard-api/config/database"
 	model "qolboard-api/models"
+	canvas_shared_invitation_model "qolboard-api/models/canvas_shared_invitation"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	response_service "qolboard-api/services/response"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	imissphpgo "github.com/jesse-rb/imissphp-go"
 )
 
 type IndexQuery struct {
@@ -36,7 +36,7 @@ func Create(c *gin.Context) {
 
 	var canvasSharedInvitation *model.CanvasSharedInvitation
 
-	canvasSharedInvitation, err = model.NewCanvasSharedInvitation(claims.Subject, canvasId)
+	canvasSharedInvitation, err = canvas_shared_invitation_model.NewCanvasSharedInvitation(claims.Subject, canvasId)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
@@ -84,32 +84,11 @@ func Index(c *gin.Context) {
 		return
 	}
 
-	data, err := model.CanvasSharedInvitation{}.GetAllForCanvas(tx, queryValues.CanvasId)
+	data, err := canvas_shared_invitation_model.GetAllForCanvas(tx, queryValues.CanvasId)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		tx.Rollback()
 		return
-	}
-
-	// Load relations
-	for i := range data {
-		if imissphpgo.InArray("canvas", queryValues.With) {
-			data[i].Canvas, err = model.Canvas{}.Get(tx, queryValues.CanvasId)
-			if err != nil {
-				error_service.InternalError(c, err.Error())
-				tx.Rollback()
-				return
-			}
-		}
-
-		if imissphpgo.InArray("cnavas_shared_access", queryValues.With) {
-			data[i].CanvasSharedAccess, err = model.CanvasSharedAccess{}.GetAllForCanvasSharedInvitation(tx, data[i].ID)
-			if err != nil {
-				error_service.InternalError(c, err.Error())
-				tx.Rollback()
-				return
-			}
-		}
 	}
 
 	tx.Commit()

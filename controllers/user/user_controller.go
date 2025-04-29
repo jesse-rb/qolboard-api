@@ -1,22 +1,57 @@
 package user_controller
 
 import (
-	model "qolboard-api/models"
+	database_config "qolboard-api/config/database"
+	user_model "qolboard-api/models/user"
 	auth_service "qolboard-api/services/auth"
+	error_service "qolboard-api/services/error"
+	generator_service "qolboard-api/services/generator"
 	response_service "qolboard-api/services/response"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Get(c *gin.Context) {
-	claims := auth_service.GetClaims(c)
+type getParams struct {
+	With []string `form:"with[]"`
+}
 
-	var user model.User = model.User{
-		Uuid:  claims.Subject,
-		Email: claims.Email,
+func Get(c *gin.Context) {
+	var params getParams = getParams{
+		With: make([]string, 0),
 	}
 
+	if err := c.ShouldBindQuery(&params); err != nil {
+		error_service.ValidationError(c, err)
+		return
+	}
+
+	claims := auth_service.GetClaims(c)
+
+	tx, err := database_config.DB(c)
+	defer tx.Commit()
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
+	}
+
+	user, err := user_model.Get(tx, claims.Subject)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
+	}
+
+	err = user_model.LoadRelations(tx, user, params.With)
+	if err != nil {
+		tx.Rollback()
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
+	resp := generator_service.BuildResponse(*user)
+
 	response_service.SetJSON(c, gin.H{
-		"data": user,
+		"data": resp,
 	})
 }

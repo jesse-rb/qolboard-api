@@ -3,7 +3,6 @@ package model
 import (
 	"fmt"
 	"os"
-	service "qolboard-api/services"
 	"time"
 
 	"github.com/jesse-rb/imissphp-go"
@@ -21,31 +20,6 @@ type CanvasSharedInvitation struct {
 	InviteLink string `json:"link" gorm:"-"` // Calculated on the fly
 }
 
-// func CanvasSharedInvitationBelongsToUser(userUuid string) func(db *gorm.DB) *gorm.DB {
-// 	return func(db *gorm.DB) *gorm.DB {
-// 		return db.Where("user_uuid", userUuid)
-// 	}
-// }
-//
-// func CanvasSharedInvitationBelongsToCanvas(canvasId uint64) func(db *gorm.DB) *gorm.DB {
-// 	return func(db *gorm.DB) *gorm.DB {
-// 		return db.Where("canvas_id", canvasId)
-// 	}
-// }
-
-func NewCanvasSharedInvitation(userUuid string, canvasId uint64) (*CanvasSharedInvitation, error) {
-	code, err := service.GenerateCode(256)
-	if err != nil {
-		return nil, err
-	}
-
-	return &CanvasSharedInvitation{
-		UserUuid: userUuid,
-		CanvasId: canvasId,
-		Code:     code,
-	}, nil
-}
-
 func (csi *CanvasSharedInvitation) Save(tx *sqlx.Tx) error {
 	now := time.Now()
 	var err error
@@ -61,16 +35,6 @@ func (csi *CanvasSharedInvitation) Save(tx *sqlx.Tx) error {
 	}
 
 	return nil
-}
-
-func (c CanvasSharedInvitation) GetAllForCanvas(tx *sqlx.Tx, canvasId uint64) ([]CanvasSharedInvitation, error) {
-	var canvasSharedInvitiations []CanvasSharedInvitation
-	err := tx.Select(&canvasSharedInvitiations, "SELECT * FROM canvas_shared_invitations csi WHERE canvas_id = $1 AND deleted_at IS NULL", canvasId)
-	if err != nil {
-		return nil, err
-	}
-
-	return canvasSharedInvitiations, err
 }
 
 func (csi CanvasSharedInvitation) Response() map[string]any {
