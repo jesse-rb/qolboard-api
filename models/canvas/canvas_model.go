@@ -89,6 +89,8 @@ var relationLoaders model.RelationLoaders[model.Canvas] = model.RelationLoaders[
 				return nil
 			},
 			BatchLoader: func(tx *sqlx.Tx, cSlice []model.Canvas) error {
+				var with map[string]any = make(map[string]any, 0)
+
 				// Get User uuids
 				userUuids := []string{}
 				for _, canvas := range cSlice {
@@ -184,7 +186,7 @@ func LoadRelations(canvas *model.Canvas, tx *sqlx.Tx, with []string) error {
 	return err
 }
 
-func LoadBatchRelations(canvases []model.Canvas, tx *sqlx.Tx, with []string) error {
+func LoadBatchRelations(canvases []model.Canvas, tx *sqlx.Tx, with map[string]any) error {
 	err := model.GenericBatchRelationsLoader(relationLoaders, canvases, tx, with)
 	return err
 }
@@ -199,7 +201,7 @@ func Get(tx *sqlx.Tx, canvasId uint64) (*model.Canvas, error) {
 	return canvas, nil
 }
 
-func GetAll(tx *sqlx.Tx, limit int, page int, with []string) ([]model.Canvas, error) {
+func GetAll(tx *sqlx.Tx, limit int, page int) ([]model.Canvas, error) {
 	offset := max(page-1, 0) * limit
 	var canvases []model.Canvas
 	err := tx.Select(&canvases, "SELECT * FROM canvases c WHERE deleted_at IS NULL LIMIT $1 OFFSET $2", limit, offset)

@@ -56,6 +56,16 @@ func (m Model) Response() map[string]any {
 	return r
 }
 
+func ParseWithParam(withSlice []string) map[string]any {
+	withMap := make(map[string]any, 0)
+	for _, with := range withSlice {
+		withMap[with] = nil
+	}
+
+	withMap = imissphp.UnFlattenMap(withMap)
+	return withMap
+}
+
 func GenericRelationsLoader[T any](relationLoaders RelationLoaders[T], model *T, tx *sqlx.Tx, with []string) error {
 	var err error
 
@@ -86,30 +96,34 @@ func GenericRelationsLoader[T any](relationLoaders RelationLoaders[T], model *T,
 	return nil
 }
 
-func GenericBatchRelationsLoader[T any](relationLoaders RelationLoaders[T], models []T, tx *sqlx.Tx, with []string) error {
+func GenericBatchRelationsLoader[T any](relationLoaders RelationLoaders[T], models []T, tx *sqlx.Tx, with map[string]any) error {
 	var err error
 
-	for _, w := range with {
+	for k, v := range with {
 		// BelongsTo
-		if relationLoader, ok := relationLoaders.BelongsTo[w]; ok {
-			err = relationLoader.BatchLoader(tx, models)
+		if relationLoader, ok := relationLoaders.BelongsTo[k]; ok {
+			err = relationLoader.BatchLoader(tx, models, with)
 			if err != nil {
 				return err
 			}
 		}
 		// HasOne
-		if relationLoader, ok := relationLoaders.HasOne[w]; ok {
+		if relationLoader, ok := relationLoaders.HasOne[k]; ok {
 			err = relationLoader.BatchLoader(tx, models)
 			if err != nil {
 				return err
 			}
 		}
 		// HasMany
-		if relationLoader, ok := relationLoaders.HasMany[w]; ok {
+		if relationLoader, ok := relationLoaders.HasMany[k]; ok {
 			err = relationLoader.BatchLoader(tx, models)
 			if err != nil {
 				return err
 			}
+		}
+
+		if v != nil {
+			// GenericBatchRelationsLoader(models)
 		}
 	}
 

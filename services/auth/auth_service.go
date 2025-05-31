@@ -64,7 +64,7 @@ func ParseJWT(token string) (*Claims, error) {
 
 	// Check if the token is valid
 	if err != nil {
-		return nil, fmt.Errorf("error validating tokenL %v", err)
+		return nil, fmt.Errorf("error validating token: %v", err)
 	} else if claims, ok := t.Claims.(*Claims); ok {
 		return claims, nil
 	}

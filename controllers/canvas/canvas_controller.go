@@ -19,7 +19,7 @@ import (
 
 type indexParams struct {
 	controller.IndexParams
-	With []string `form:"with[]" binding:"dive,oneof=canvas_shared_invitations canvas_shared_accesses user"`
+	With []string `form:"with[]"`
 }
 
 func Index(c *gin.Context) {
@@ -36,6 +36,8 @@ func Index(c *gin.Context) {
 		return
 	}
 
+	with := model.ParseWithParam(params.With)
+
 	tx, err := database_config.DB(c)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
@@ -43,14 +45,14 @@ func Index(c *gin.Context) {
 	}
 	defer tx.Commit()
 
-	canvases, err := canvas_model.GetAll(tx, params.Limit, params.Page, params.With)
+	canvases, err := canvas_model.GetAll(tx, params.Limit, params.Page)
 	if err != nil {
 		tx.Rollback()
 		error_service.InternalError(c, err.Error())
 		return
 	}
 
-	canvas_model.LoadBatchRelations(canvases, tx, params.With)
+	canvas_model.LoadBatchRelations(canvases, tx, with)
 
 	resp := generator_service.BuildResponse(canvases)
 

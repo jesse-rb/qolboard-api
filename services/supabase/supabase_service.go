@@ -66,6 +66,7 @@ func Signup(data RegisterBodyData) (code int, supabaseRegisterResponse *Supabase
 		return code, nil, err
 	}
 
+	logging.LogDebug("supabase_service::Signup", "response", string(response))
 	logging.LogInfo("Signup", "received supabase signup response with code", code)
 
 	var supabaseResponse SupabaseRegisterResponse
@@ -134,7 +135,7 @@ func supabase(method string, path string, bodyData []byte, token string) (code i
 
 	request, err := http.NewRequest(method, url, bytes.NewBuffer(bodyData))
 	if err != nil {
-		logging.LogError("supabase", "Failed initiating supabase request", err)
+		logging.LogError("supabase", "Failed initiating supabase request", err.Error())
 		return 0, nil, err
 	}
 
@@ -147,7 +148,7 @@ func supabase(method string, path string, bodyData []byte, token string) (code i
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		logging.LogError("supabase", "Failed sending supabase request", err)
+		logging.LogError("supabase", "Failed sending supabase request", err.Error())
 		return response.StatusCode, nil, err
 	}
 
@@ -155,7 +156,7 @@ func supabase(method string, path string, bodyData []byte, token string) (code i
 
 	responseBodyBytes, err = io.ReadAll(response.Body)
 	if err != nil {
-		logging.LogError("supabase", "Failed reading supabase response body", err)
+		logging.LogError("supabase", "Failed reading supabase response body", err.Error())
 		return response.StatusCode, nil, err
 	}
 
