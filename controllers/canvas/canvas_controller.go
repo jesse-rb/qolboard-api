@@ -11,6 +11,7 @@ import (
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	generator_service "qolboard-api/services/generator"
+	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
 	"strconv"
 
@@ -36,8 +37,6 @@ func Index(c *gin.Context) {
 		return
 	}
 
-	with := model.ParseWithParam(params.With)
-
 	tx, err := database_config.DB(c)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
@@ -52,7 +51,13 @@ func Index(c *gin.Context) {
 		return
 	}
 
-	canvas_model.LoadBatchRelations(canvases, tx, with)
+	// canvas_model.LoadBatchRelations(canvases, tx, with)
+	err = relations_service.LoadBatchRelations(canvas_model.CanvasRelations, canvases, tx, params.With)
+	if err != nil {
+		tx.Rollback()
+		error_service.InternalError(c, err.Error())
+		return
+	}
 
 	resp := generator_service.BuildResponse(canvases)
 

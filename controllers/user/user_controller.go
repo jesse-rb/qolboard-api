@@ -6,6 +6,7 @@ import (
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	generator_service "qolboard-api/services/generator"
+	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
 
 	"github.com/gin-gonic/gin"
@@ -42,7 +43,7 @@ func Get(c *gin.Context) {
 		return
 	}
 
-	err = user_model.LoadRelations(tx, user, params.With)
+	err = relations_service.LoadRelations(user_model.UserRelations, user, tx, params.With)
 	if err != nil {
 		tx.Rollback()
 		error_service.InternalError(c, err.Error())

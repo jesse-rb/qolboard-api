@@ -50,6 +50,8 @@ github.com/jackc/puddle/v2 v2.2.2 h1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo
 github.com/jackc/puddle/v2 v2.2.2/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
 github.com/jesse-rb/imissphp-go v0.0.6 h1:h778oBYeW03E3WX8oXxxZ3B4XDUE0viCQiyzADFxSEM=
 github.com/jesse-rb/imissphp-go v0.0.6/go.mod h1:RFXsejbaFcLRszey8bkuQVqjO9iFm+5U02+qAaQ9fmM=
+github.com/jesse-rb/imissphp-go v0.0.7 h1:CjpYhadHsgsm/fC90tFp4NkolbGqznN5P4ebn99IApc=
+github.com/jesse-rb/imissphp-go v0.0.7/go.mod h1:WyVI4QKvDuMFfkq05MB2RdwASbA+XTJ748gRCsADSSE=
 github.com/jesse-rb/slogger-go v1.0.2 h1:iLXO624CTyTSrTf0tNWin4wvmWMKu53KTakc0fNrctE=
 github.com/jesse-rb/slogger-go v1.0.2/go.mod h1:6/jDnLwF6xRprBvkdMceXsbSOukAdl2JkTZVDf6A0g8=
 github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=

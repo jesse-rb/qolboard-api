@@ -2,6 +2,7 @@ package canvas_model
 
 import (
 	model "qolboard-api/models"
+	relations_service "qolboard-api/services/relations"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -75,120 +76,34 @@ type DOMMatrixs struct {
 	M44 float64 `json:"m44" binding:"required"`
 }
 
-var relationLoaders model.RelationLoaders[model.Canvas] = model.RelationLoaders[model.Canvas]{
-	BelongsTo: map[string]model.BelongsToLoader[model.Canvas]{
-		"user": {
-			Loader: func(tx *sqlx.Tx, c *model.Canvas) error {
-				// user, err := model.User{}.Get(tx, c.UserUuid)
-				user := &model.User{}
-				err := tx.Select(user, "SELECT * FROM view_users u WHERE u.id = $1", c.UserUuid)
-				if err != nil {
-					return err
-				}
-				c.User = user
-				return nil
-			},
-			BatchLoader: func(tx *sqlx.Tx, cSlice []model.Canvas) error {
-				var with map[string]any = make(map[string]any, 0)
+var CanvasRelations = relations_service.NewRelationRegistry[model.Canvas]()
 
-				// Get User uuids
-				userUuids := []string{}
-				for _, canvas := range cSlice {
-					userUuids = append(userUuids, canvas.UserUuid)
-				}
+func init() {
+	// Belongs to User
+	CanvasRelations.RegisterSingle("user", relations_service.MakeSingleLoader(
+		"SELECT * FROM view_users WHERE id = $1",
+		func(c *model.Canvas) any { return c.UserUuid },
+		func(c *model.Canvas, u *model.User) { c.User = u },
+	))
+	CanvasRelations.RegisterBatch("user", relations_service.MakeBatchLoader(
+		"SELECT * FROM view_users WHERE id IN (?)",
+		func(c *model.Canvas) string { return c.UserUuid },
+		func(c *model.Canvas, u *model.User) { c.User = u },
+		func(u *model.User) string { return u.Uuid },
+	))
 
-				// Get users by uuids
-				users := []model.User{}
-				query, args, err := sqlx.In("SELECT * FROM view_users u WHERE u.id IN (?);", userUuids)
-				if err != nil {
-					return err
-				}
-
-				query = tx.Rebind(query)
-				err = tx.Select(&users, query, args...)
-				if err != nil {
-					return err
-				}
-
-				// Key users by uuid
-				usersMap := map[string]*model.User{}
-				for _, user := range users {
-					usersMap[user.Uuid] = &user
-				}
-
-				// Mix in
-				for i := range cSlice {
-					cSlice[i].User = usersMap[cSlice[i].UserUuid]
-				}
-
-				return nil
-			},
-		},
-	},
-	HasOne: map[string]model.HasOneLoader[model.Canvas]{},
-	HasMany: map[string]model.HasManyLoader[model.Canvas]{
-		"canvas_shared_invitations": {
-			Loader: func(tx *sqlx.Tx, c *model.Canvas) error {
-				canvasSharedInvitations := make([]model.CanvasSharedInvitation, 0)
-				err := tx.Select(canvasSharedInvitations, "SELECT * FROM canvas_shared_invitations csi WHERE csi.canvas_id = $1", c.ID)
-				if err != nil {
-					return err
-				}
-
-				c.CanvasSharedInvitations = canvasSharedInvitations
-
-				return nil
-			},
-			BatchLoader: func(tx *sqlx.Tx, models []model.Canvas) error {
-				// Get all canvas shared invitation ids
-				canvasIds := make([]uint64, 0)
-				for _, c := range models {
-					canvasIds = append(canvasIds, c.ID)
-				}
-
-				// Get canvas shared invitations by canvas ids
-				var csiSlice []model.CanvasSharedInvitation
-				query, args, err := sqlx.In("SELECT * FROM canvas_shared_invitations csi WHERE csi.canvas_id IN (?);", canvasIds)
-				if err != nil {
-					return err
-				}
-				query = tx.Rebind(query)
-				err = tx.Select(&csiSlice, query, args...)
-				if err != nil {
-					return err
-				}
-
-				// Key csiList by canvas id
-				csiMap := make(map[uint64][]model.CanvasSharedInvitation, 0)
-				for _, csi := range csiSlice {
-					if _, ok := csiMap[csi.CanvasId]; !ok {
-						csiMap[csi.CanvasId] = make([]model.CanvasSharedInvitation, 0)
-					}
-
-					csiMap[csi.CanvasId] = append(csiMap[csi.CanvasId], csi)
-				}
-
-				// Mix in
-				for i := range models {
-					if csiSlice, ok := csiMap[models[i].ID]; ok {
-						models[i].CanvasSharedInvitations = csiSlice
-					}
-				}
-
-				return nil
-			},
-		},
-	},
-}
-
-func LoadRelations(canvas *model.Canvas, tx *sqlx.Tx, with []string) error {
-	err := model.GenericRelationsLoader(relationLoaders, canvas, tx, with)
-	return err
-}
-
-func LoadBatchRelations(canvases []model.Canvas, tx *sqlx.Tx, with map[string]any) error {
-	err := model.GenericBatchRelationsLoader(relationLoaders, canvases, tx, with)
-	return err
+	// HasMany CanvasSharedIvnitations
+	CanvasRelations.RegisterSingle("canvas_shared_invitations", relations_service.MakeHasManySingleLoader(
+		"SELECT * FROM canvas_shared_invitations WHERE canvas_id = $1",
+		func(c *model.Canvas) any { return c.ID },
+		func(c *model.Canvas, rels []model.CanvasSharedInvitation) { c.CanvasSharedInvitations = rels },
+	))
+	CanvasRelations.RegisterBatch("canvas_shared_invitations", relations_service.MakeHasManyBatchLoader(
+		"SELECT * FROM canvas_shared_invitations WHERE canvas_id IN (?)",
+		func(c *model.Canvas) uint64 { return c.ID },
+		func(c *model.Canvas, invs []model.CanvasSharedInvitation) { c.CanvasSharedInvitations = invs },
+		func(i *model.CanvasSharedInvitation) uint64 { return i.CanvasId },
+	))
 }
 
 func Get(tx *sqlx.Tx, canvasId uint64) (*model.Canvas, error) {
