@@ -52,7 +52,8 @@ func Index(c *gin.Context) {
 	}
 
 	// canvas_model.LoadBatchRelations(canvases, tx, with)
-	err = relations_service.LoadBatchRelations(canvas_model.CanvasRelations, canvases, tx, params.With)
+
+	err = relations_service.LoadBatch(tx, model.CanvasRelations, canvases, params.With)
 	if err != nil {
 		tx.Rollback()
 		error_service.InternalError(c, err.Error())

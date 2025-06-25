@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"os"
+	relations_service "qolboard-api/services/relations"
 	"time"
 
 	"github.com/jesse-rb/imissphp-go"
@@ -18,6 +19,16 @@ type CanvasSharedInvitation struct {
 	CanvasSharedAccess []*CanvasSharedAccess `json:"canvas_shared_access"`
 
 	InviteLink string `json:"link" gorm:"-"` // Calculated on the fly
+}
+
+var CanvasSharedInvitationRelations relations_service.RelationRegistry = relations_service.NewRelationRegistry()
+
+func (csi CanvasSharedInvitation) GetRelations() relations_service.RelationRegistry {
+	return CanvasSharedInvitationRelations
+}
+
+func (csi CanvasSharedInvitation) GetPrimaryKey() any {
+	return csi.ID
 }
 
 func (csi *CanvasSharedInvitation) Save(tx *sqlx.Tx) error {

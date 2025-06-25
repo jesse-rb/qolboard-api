@@ -2,6 +2,7 @@ package user_controller
 
 import (
 	database_config "qolboard-api/config/database"
+	model "qolboard-api/models"
 	user_model "qolboard-api/models/user"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
@@ -43,7 +44,7 @@ func Get(c *gin.Context) {
 		return
 	}
 
-	err = relations_service.LoadRelations(user_model.UserRelations, user, tx, params.With)
+	err = relations_service.Load(tx, model.UserRelations, user, params.With)
 	if err != nil {
 		tx.Rollback()
 		error_service.InternalError(c, err.Error())

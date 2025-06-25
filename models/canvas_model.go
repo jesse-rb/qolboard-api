@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	relations_service "qolboard-api/services/relations"
 	"time"
 
 	"github.com/jesse-rb/imissphp-go"
@@ -16,6 +17,40 @@ type Canvas struct {
 	CanvasSharedAccesses    []CanvasSharedAccess     `json:"canvas_shared_accesses" x_ismodel:"true"`
 	CanvasSharedInvitations []CanvasSharedInvitation `json:"canvas_shared_invitations" x_ismodel:"true"`
 	User                    *User                    `json:"user" x_ismodel:"true"`
+}
+
+var CanvasRelations relations_service.RelationRegistry = relations_service.NewRelationRegistry()
+
+func (c Canvas) GetRelations() relations_service.RelationRegistry {
+	return CanvasRelations
+}
+
+func (c Canvas) GetPrimaryKey() any {
+	return c.ID
+}
+
+func init() {
+	// Belongs to User
+	relations_service.HasOne(
+		"user",
+		CanvasRelations,
+		"SELECT * FROM view_users WHERE id = $1",
+		"SELECT * FROM view_users WHERE id IN (?)",
+		func(c *Canvas, u *User) { c.User = u },
+		func(c Canvas) any { return c.UserUuid },
+		func(u User) any { return u.Uuid },
+	)
+
+	// Has many CanvasSharedInvitations
+	relations_service.HasMany(
+		"canvas_shared_invitations",
+		CanvasRelations,
+		"SELECT * FROM canvas_shared_invitations WHERE id = $1",
+		"SELECT * FROM canvas_shared_invitations WHERE id IN (?)",
+		func(c *Canvas, csi []CanvasSharedInvitation) { c.CanvasSharedInvitations = csi },
+		func(c Canvas) any { return c.ID },
+		func(csi CanvasSharedInvitation) any { return csi.CanvasId },
+	)
 }
 
 func (c *Canvas) Save(tx *sqlx.Tx) error {

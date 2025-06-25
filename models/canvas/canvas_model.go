@@ -2,7 +2,6 @@ package canvas_model
 
 import (
 	model "qolboard-api/models"
-	relations_service "qolboard-api/services/relations"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -74,36 +73,6 @@ type DOMMatrixs struct {
 	M42 float64 `json:"m42" binding:"required"`
 	M43 float64 `json:"m43" binding:"required"`
 	M44 float64 `json:"m44" binding:"required"`
-}
-
-var CanvasRelations = relations_service.NewRelationRegistry[model.Canvas]()
-
-func init() {
-	// Belongs to User
-	CanvasRelations.RegisterSingle("user", relations_service.MakeSingleLoader(
-		"SELECT * FROM view_users WHERE id = $1",
-		func(c *model.Canvas) any { return c.UserUuid },
-		func(c *model.Canvas, u *model.User) { c.User = u },
-	))
-	CanvasRelations.RegisterBatch("user", relations_service.MakeBatchLoader(
-		"SELECT * FROM view_users WHERE id IN (?)",
-		func(c *model.Canvas) string { return c.UserUuid },
-		func(c *model.Canvas, u *model.User) { c.User = u },
-		func(u *model.User) string { return u.Uuid },
-	))
-
-	// HasMany CanvasSharedIvnitations
-	CanvasRelations.RegisterSingle("canvas_shared_invitations", relations_service.MakeHasManySingleLoader(
-		"SELECT * FROM canvas_shared_invitations WHERE canvas_id = $1",
-		func(c *model.Canvas) any { return c.ID },
-		func(c *model.Canvas, rels []model.CanvasSharedInvitation) { c.CanvasSharedInvitations = rels },
-	))
-	CanvasRelations.RegisterBatch("canvas_shared_invitations", relations_service.MakeHasManyBatchLoader(
-		"SELECT * FROM canvas_shared_invitations WHERE canvas_id IN (?)",
-		func(c *model.Canvas) uint64 { return c.ID },
-		func(c *model.Canvas, invs []model.CanvasSharedInvitation) { c.CanvasSharedInvitations = invs },
-		func(i *model.CanvasSharedInvitation) uint64 { return i.CanvasId },
-	))
 }
 
 func Get(tx *sqlx.Tx, canvasId uint64) (*model.Canvas, error) {
