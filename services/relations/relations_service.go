@@ -1,8 +1,7 @@
+// Bad code for a bad idea
 package relations_service
 
 import (
-	"qolboard-api/services/logging"
-
 	"github.com/jesse-rb/imissphp-go"
 	"github.com/jmoiron/sqlx"
 )
@@ -23,24 +22,14 @@ type IHasRelations interface {
 }
 
 type (
-	SingleRelationLoaderFunc func(tx *sqlx.Tx, model *IHasRelations) ([]IHasRelations, error)
-	BatchRelationLoaderFunc  func(tx *sqlx.Tx, models []IHasRelations) ([]IHasRelations, error)
+	SingleRelationLoaderFunc func(tx *sqlx.Tx, model *IHasRelations) (map[any]any, []IHasRelations, error)
+	BatchRelationLoaderFunc  func(tx *sqlx.Tx, models []IHasRelations) (map[any]any, []IHasRelations, error)
 )
 
 type Relation struct {
 	single SingleRelationLoaderFunc
 	batch  BatchRelationLoaderFunc
-}
-
-type Single[TRelated IHasRelations] struct {
-	query  string
-	assign func(*IHasRelations, TRelated)
-}
-
-type Batch[TRelated IHasRelations] struct {
-	query         string
-	assign        func(*IHasRelations, TRelated)
-	getForeignKey func(TRelated) any
+	assign func(model any, related any)
 }
 
 func HasOne[TModel IHasRelations, TRelated IHasRelations](
@@ -55,6 +44,7 @@ func HasOne[TModel IHasRelations, TRelated IHasRelations](
 	r.Relations[name] = Relation{
 		single: makeSingleLoader(single, assign),
 		batch:  makeBatchLoader(batch, assign, getModelForeignKey, getRelatedPrimaryKey),
+		assign: makeAssignFunc(assign),
 	}
 }
 
@@ -70,6 +60,7 @@ func BelongsTo[TModel IHasRelations, TRelated IHasRelations](
 	r.Relations[name] = Relation{
 		single: makeSingleLoader(single, assign),
 		batch:  makeBatchLoader(batch, assign, getModelForeignKey, getRelatedPrimaryKey),
+		assign: makeAssignFunc(assign),
 	}
 }
 
@@ -85,6 +76,33 @@ func HasMany[TModel IHasRelations, TRelated IHasRelations](
 	r.Relations[name] = Relation{
 		single: makeHasManySingleLoader(single, assign),
 		batch:  makeHasManyBatchLoader(batch, assign, getModelForeignKey, getRelatedPrimaryKey),
+		assign: makeAssignManyFunc(assign),
+	}
+}
+
+func makeAssignFunc[TModel IHasRelations, TRelated IHasRelations](
+	assign func(*TModel, *TRelated),
+) func(any, any) {
+	return func(model any, related any) {
+		m, ok1 := model.(*TModel)
+		r, ok2 := related.(*TRelated)
+
+		if ok1 && ok2 {
+			assign(m, r)
+		}
+	}
+}
+
+func makeAssignManyFunc[TModel IHasRelations, TRelated IHasRelations](
+	assign func(*TModel, []TRelated),
+) func(any, any) {
+	return func(model any, related any) {
+		m, ok1 := model.(*TModel)
+		r, ok2 := related.([]TRelated)
+
+		if ok1 && ok2 {
+			assign(m, r)
+		}
 	}
 }
 
@@ -92,18 +110,21 @@ func makeSingleLoader[TModel IHasRelations, TRelated IHasRelations](
 	query string,
 	assign func(*TModel, *TRelated),
 ) SingleRelationLoaderFunc {
-	return func(tx *sqlx.Tx, model *IHasRelations) ([]IHasRelations, error) {
+	return func(tx *sqlx.Tx, model *IHasRelations) (map[any]any, []IHasRelations, error) {
 		related := new(TRelated)
 		err := tx.Get(related, query, (*model).GetPrimaryKey())
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if tModel, ok := (*model).(TModel); ok {
 			assign(&tModel, related)
 			var tmp IHasRelations = tModel
 			model = &tmp
 		}
-		return []IHasRelations{*related}, nil
+		toReturn := make(map[any]any)
+		key := (*model).GetPrimaryKey()
+		toReturn[key] = *related
+		return toReturn, []IHasRelations{*related}, nil
 	}
 }
 
@@ -111,22 +132,24 @@ func makeHasManySingleLoader[TModel IHasRelations, TRelated IHasRelations](
 	query string,
 	assign func(*TModel, []TRelated),
 ) SingleRelationLoaderFunc {
-	return func(tx *sqlx.Tx, model *IHasRelations) ([]IHasRelations, error) {
+	return func(tx *sqlx.Tx, model *IHasRelations) (map[any]any, []IHasRelations, error) {
 		related := make([]TRelated, 0)
 		err := tx.Select(&related, query, (*model).GetPrimaryKey())
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if tModel, ok := (*model).(TModel); ok {
 			assign(&tModel, related)
 			*model = tModel
 		}
 
-		toReturn := make([]IHasRelations, len(related))
+		toReturnMap := make(map[any]any, len(related))
+		toReturnMap[(*model).GetPrimaryKey()] = related
+		toReturnSlice := make([]IHasRelations, len(related))
 		for i, r := range related {
-			toReturn[i] = r
+			toReturnSlice[i] = r
 		}
-		return toReturn, nil
+		return toReturnMap, toReturnSlice, nil
 	}
 }
 
@@ -136,7 +159,7 @@ func makeBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 	getModelForeignKey func(TModel) any,
 	getRelatedPrimaryKey func(TRelated) any,
 ) BatchRelationLoaderFunc {
-	return func(tx *sqlx.Tx, models []IHasRelations) ([]IHasRelations, error) {
+	return func(tx *sqlx.Tx, models []IHasRelations) (map[any]any, []IHasRelations, error) {
 		keys := make([]any, 0, len(models))
 		for i := range models {
 			keys = append(keys, getModelForeignKey(models[i].(TModel)))
@@ -144,14 +167,14 @@ func makeBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 
 		queryStr, args, err := sqlx.In(query, keys)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		queryStr = tx.Rebind(queryStr)
 
 		related := make([]TRelated, 0, len(models))
 		err = tx.Select(&related, queryStr, args...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		relMap := make(map[any]*TRelated)
@@ -169,12 +192,16 @@ func makeBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 			}
 		}
 
-		toReturn := make([]IHasRelations, len(related))
+		toReturnMap := make(map[any]any, len(related))
+		for key, r := range relMap {
+			toReturnMap[key] = r
+		}
+		toReturnSlice := make([]IHasRelations, len(related))
 		for i, r := range related {
-			toReturn[i] = r
+			toReturnSlice[i] = r
 		}
 
-		return toReturn, nil
+		return toReturnMap, toReturnSlice, nil
 	}
 }
 
@@ -184,7 +211,7 @@ func makeHasManyBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 	getModelForeignKey func(TModel) any,
 	getRelatedPrimaryKey func(TRelated) any,
 ) BatchRelationLoaderFunc {
-	return func(tx *sqlx.Tx, models []IHasRelations) ([]IHasRelations, error) {
+	return func(tx *sqlx.Tx, models []IHasRelations) (map[any]any, []IHasRelations, error) {
 		keys := make([]any, 0, len(models))
 		for i := range models {
 			keys = append(keys, models[i].GetPrimaryKey())
@@ -192,14 +219,14 @@ func makeHasManyBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 
 		queryStr, args, err := sqlx.In(query, keys)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		queryStr = tx.Rebind(queryStr)
 
 		related := make([]TRelated, len(models))
 		err = tx.Select(&related, queryStr, args...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		relMap := make(map[any][]TRelated)
@@ -217,12 +244,16 @@ func makeHasManyBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 			}
 		}
 
-		toReturn := make([]IHasRelations, len(related))
+		toReturnMap := make(map[any]any, len(related))
+		for key, r := range relMap {
+			toReturnMap[key] = r
+		}
+		toReturnSlice := make([]IHasRelations, len(related))
 		for i, r := range related {
-			toReturn[i] = r
+			toReturnSlice[i] = r
 		}
 
-		return toReturn, nil
+		return toReturnMap, toReturnSlice, nil
 	}
 }
 
@@ -230,15 +261,21 @@ func (r RelationRegistry) LoadRelations(tx *sqlx.Tx, model *IHasRelations, with 
 	for name := range with {
 		if relation, ok := r.Relations[name]; ok {
 			loaderFn := relation.single
-			related, err := loaderFn(tx, model)
+			relatedMap, relatedSlice, err := loaderFn(tx, model)
 			if err != nil {
 				return err
 			}
 
-			if len(related) > 0 {
-				rRelated := related[0].GetRelations()
+			if len(relatedSlice) > 0 {
+				rRelated := relatedSlice[0].GetRelations()
 				if nestedWithMap, ok := with[name].(map[string]any); ok {
-					rRelated.LoadBatchRelations(tx, related, nestedWithMap)
+					rRelated.LoadBatchRelations(tx, relatedSlice, nestedWithMap)
+				}
+
+				key := (*model).GetPrimaryKey()
+				if _, ok := relatedMap[key]; ok {
+					assignFn := relation.assign
+					assignFn(model, relatedMap[key])
 				}
 			}
 		}
@@ -250,15 +287,23 @@ func (r RelationRegistry) LoadBatchRelations(tx *sqlx.Tx, models []IHasRelations
 	for name := range with {
 		if relation, ok := r.Relations[name]; ok {
 			loaderFn := relation.batch
-			related, err := loaderFn(tx, models)
+			relatedMap, relatedSlice, err := loaderFn(tx, models)
 			if err != nil {
 				return err
 			}
 
-			if len(related) > 0 {
-				rRelated := related[0].GetRelations()
+			if len(relatedSlice) > 0 {
+				rRelated := relatedSlice[0].GetRelations()
 				if nestedWithMap, ok := with[name].(map[string]any); ok {
-					rRelated.LoadBatchRelations(tx, related, nestedWithMap)
+					rRelated.LoadBatchRelations(tx, relatedSlice, nestedWithMap)
+				}
+
+				for i := range models {
+					key := (models[i]).GetPrimaryKey()
+					if _, ok := relatedMap[key]; ok {
+						assignFn := relation.assign
+						assignFn(models[i], relatedMap[key])
+					}
 				}
 			}
 		}
@@ -278,7 +323,6 @@ func HandleWithParams(with []string) map[string]any {
 func Load[TModel IHasRelations](tx *sqlx.Tx, r RelationRegistry, model *TModel, with []string) error {
 	var iHasRelations IHasRelations = *model
 	err := r.LoadRelations(tx, &iHasRelations, HandleWithParams(with))
-	logging.LogDebug("iHassRelations", "iHasRelations", iHasRelations)
 
 	if tModel, ok := iHasRelations.(TModel); ok {
 		*model = tModel
@@ -293,13 +337,11 @@ func LoadBatch[TModel IHasRelations](tx *sqlx.Tx, r RelationRegistry, models []T
 	}
 	err := r.LoadBatchRelations(tx, iHasRelations, HandleWithParams(with))
 
-	// tModels := make([]TModel, len(iHasRelations))
 	for i, rel := range iHasRelations {
 		if tModel, ok := rel.(TModel); ok {
 			models[i] = tModel
 		}
 	}
-	// models = tModels
 
 	return err
 }
