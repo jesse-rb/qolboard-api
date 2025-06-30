@@ -34,7 +34,7 @@ func init() {
 		UserRelations,
 		"SELECT * FROM canvases WHERE user_uuid = $1 AND deleted_at IS NULL",
 		"SELECT * FROM canvases WHERE user_uuid IN (?) AND deleted_at IS NULL",
-		func(u *User, c []Canvas) { u.Canvases = c },
+		func(u User, c []Canvas) User { u.Canvases = c; return u },
 		func(u User) any { return u.Uuid },
 		func(c Canvas) any { return c.UserUuid },
 	)

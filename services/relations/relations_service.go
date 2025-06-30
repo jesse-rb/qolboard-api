@@ -2,6 +2,8 @@
 package relations_service
 
 import (
+	"qolboard-api/services/logging"
+
 	"github.com/jesse-rb/imissphp-go"
 	"github.com/jmoiron/sqlx"
 )
@@ -22,14 +24,17 @@ type IHasRelations interface {
 }
 
 type (
-	SingleRelationLoaderFunc func(tx *sqlx.Tx, model *IHasRelations) (map[any]any, []IHasRelations, error)
-	BatchRelationLoaderFunc  func(tx *sqlx.Tx, models []IHasRelations) (map[any]any, []IHasRelations, error)
+	SingleRelationLoaderFunc func(tx *sqlx.Tx, model *IHasRelations) ([]IHasRelations, error)
+	BatchRelationLoaderFunc  func(tx *sqlx.Tx, models []IHasRelations) ([]IHasRelations, error)
 )
 
 type Relation struct {
-	single SingleRelationLoaderFunc
-	batch  BatchRelationLoaderFunc
-	assign func(model any, related any)
+	single       SingleRelationLoaderFunc
+	batch        BatchRelationLoaderFunc
+	assign       func(model IHasRelations, related any) IHasRelations
+	getModelFk   func(model IHasRelations) any
+	getRelatedPk func(related IHasRelations) any
+	kind         string
 }
 
 func HasOne[TModel IHasRelations, TRelated IHasRelations](
@@ -37,14 +42,17 @@ func HasOne[TModel IHasRelations, TRelated IHasRelations](
 	r RelationRegistry,
 	single string,
 	batch string,
-	assign func(*TModel, *TRelated),
+	assign func(TModel, TRelated) TModel,
 	getModelForeignKey func(TModel) any,
 	getRelatedPrimaryKey func(TRelated) any,
 ) {
 	r.Relations[name] = Relation{
-		single: makeSingleLoader(single, assign),
-		batch:  makeBatchLoader(batch, assign, getModelForeignKey, getRelatedPrimaryKey),
-		assign: makeAssignFunc(assign),
+		single:       makeSingleLoader(single, assign),
+		batch:        makeBatchLoader(batch, assign, getModelForeignKey, getRelatedPrimaryKey),
+		assign:       makeAssignFunc(assign),
+		getModelFk:   makeGetModelPkFunc(getModelForeignKey),
+		getRelatedPk: makeGetRelatedPkFunc(getRelatedPrimaryKey),
+		kind:         "has_one",
 	}
 }
 
@@ -53,14 +61,17 @@ func BelongsTo[TModel IHasRelations, TRelated IHasRelations](
 	r RelationRegistry,
 	single string,
 	batch string,
-	assign func(*TModel, *TRelated),
+	assign func(TModel, TRelated) TModel,
 	getModelForeignKey func(TModel) any,
 	getRelatedPrimaryKey func(TRelated) any,
 ) {
 	r.Relations[name] = Relation{
-		single: makeSingleLoader(single, assign),
-		batch:  makeBatchLoader(batch, assign, getModelForeignKey, getRelatedPrimaryKey),
-		assign: makeAssignFunc(assign),
+		single:       makeSingleLoader(single, assign),
+		batch:        makeBatchLoader(batch, assign, getModelForeignKey, getRelatedPrimaryKey),
+		assign:       makeAssignFunc(assign),
+		getModelFk:   makeGetModelPkFunc(getModelForeignKey),
+		getRelatedPk: makeGetRelatedPkFunc(getRelatedPrimaryKey),
+		kind:         "belongs_to",
 	}
 }
 
@@ -69,97 +80,137 @@ func HasMany[TModel IHasRelations, TRelated IHasRelations](
 	r RelationRegistry,
 	single string,
 	batch string,
-	assign func(*TModel, []TRelated),
+	assign func(TModel, []TRelated) TModel,
 	getModelForeignKey func(TModel) any,
 	getRelatedPrimaryKey func(TRelated) any,
 ) {
 	r.Relations[name] = Relation{
-		single: makeHasManySingleLoader(single, assign),
-		batch:  makeHasManyBatchLoader(batch, assign, getModelForeignKey, getRelatedPrimaryKey),
-		assign: makeAssignManyFunc(assign),
+		single:       makeHasManySingleLoader(single, assign),
+		batch:        makeHasManyBatchLoader(batch, assign, getModelForeignKey, getRelatedPrimaryKey),
+		assign:       makeAssignManyFunc(assign),
+		getModelFk:   makeGetModelPkFunc(getModelForeignKey),
+		getRelatedPk: makeGetRelatedPkFunc(getRelatedPrimaryKey),
+		kind:         "has_many",
 	}
 }
 
 func makeAssignFunc[TModel IHasRelations, TRelated IHasRelations](
-	assign func(*TModel, *TRelated),
-) func(any, any) {
-	return func(model any, related any) {
-		m, ok1 := model.(*TModel)
-		r, ok2 := related.(*TRelated)
-
+	assign func(TModel, TRelated) TModel,
+) func(IHasRelations, any) IHasRelations {
+	return func(model IHasRelations, related any) IHasRelations {
+		m, ok1 := model.(TModel)
+		r, ok2 := related.(TRelated)
 		if ok1 && ok2 {
-			assign(m, r)
+			model = assign(m, r)
 		}
+
+		return model
 	}
 }
 
 func makeAssignManyFunc[TModel IHasRelations, TRelated IHasRelations](
-	assign func(*TModel, []TRelated),
-) func(any, any) {
-	return func(model any, related any) {
-		m, ok1 := model.(*TModel)
-		r, ok2 := related.([]TRelated)
+	assign func(TModel, []TRelated) TModel,
+) func(IHasRelations, any) IHasRelations {
+	return func(model IHasRelations, related any) IHasRelations {
+		m, ok1 := model.(TModel)
+		r, ok2 := related.([]IHasRelations)
+
+		logging.LogDebug("makeAssignManyFunc", "ok1, ok2", map[string]any{
+			"ok1": ok1,
+			"ok2": ok2,
+		})
 
 		if ok1 && ok2 {
-			assign(m, r)
+			_r := make([]TRelated, 0)
+			for i := range r {
+				if tRelated, ok := r[i].(TRelated); ok {
+					_r = append(_r, tRelated)
+				}
+			}
+			model = assign(m, _r)
+		}
+
+		return model
+	}
+}
+
+func makeGetModelPkFunc[TModel IHasRelations](
+	getModelPk func(TModel) any,
+) func(IHasRelations) any {
+	return func(model IHasRelations) any {
+		m, ok := model.(TModel)
+
+		if ok {
+			return getModelPk(m)
+		} else {
+			return nil
+		}
+	}
+}
+
+func makeGetRelatedPkFunc[TRelated IHasRelations](
+	getRelatedPk func(TRelated) any,
+) func(IHasRelations) any {
+	return func(related IHasRelations) any {
+		r, ok := related.(TRelated)
+
+		if ok {
+			return getRelatedPk(r)
+		} else {
+			return nil
 		}
 	}
 }
 
 func makeSingleLoader[TModel IHasRelations, TRelated IHasRelations](
 	query string,
-	assign func(*TModel, *TRelated),
+	assign func(TModel, TRelated) TModel,
 ) SingleRelationLoaderFunc {
-	return func(tx *sqlx.Tx, model *IHasRelations) (map[any]any, []IHasRelations, error) {
+	return func(tx *sqlx.Tx, model *IHasRelations) ([]IHasRelations, error) {
 		related := new(TRelated)
 		err := tx.Get(related, query, (*model).GetPrimaryKey())
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if tModel, ok := (*model).(TModel); ok {
-			assign(&tModel, related)
+			tModel = assign(tModel, *related)
 			var tmp IHasRelations = tModel
-			model = &tmp
+			*model = tmp
 		}
-		toReturn := make(map[any]any)
-		key := (*model).GetPrimaryKey()
-		toReturn[key] = *related
-		return toReturn, []IHasRelations{*related}, nil
+		return []IHasRelations{*related}, nil
 	}
 }
 
 func makeHasManySingleLoader[TModel IHasRelations, TRelated IHasRelations](
 	query string,
-	assign func(*TModel, []TRelated),
+	assign func(TModel, []TRelated) TModel,
 ) SingleRelationLoaderFunc {
-	return func(tx *sqlx.Tx, model *IHasRelations) (map[any]any, []IHasRelations, error) {
+	return func(tx *sqlx.Tx, model *IHasRelations) ([]IHasRelations, error) {
 		related := make([]TRelated, 0)
 		err := tx.Select(&related, query, (*model).GetPrimaryKey())
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if tModel, ok := (*model).(TModel); ok {
-			assign(&tModel, related)
+			tModel = assign(tModel, related)
 			*model = tModel
 		}
 
-		toReturnMap := make(map[any]any, len(related))
-		toReturnMap[(*model).GetPrimaryKey()] = related
 		toReturnSlice := make([]IHasRelations, len(related))
 		for i, r := range related {
 			toReturnSlice[i] = r
 		}
-		return toReturnMap, toReturnSlice, nil
+		return toReturnSlice, nil
 	}
 }
 
 func makeBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 	query string,
-	assign func(*TModel, *TRelated),
+	assign func(TModel, TRelated) TModel,
 	getModelForeignKey func(TModel) any,
 	getRelatedPrimaryKey func(TRelated) any,
 ) BatchRelationLoaderFunc {
-	return func(tx *sqlx.Tx, models []IHasRelations) (map[any]any, []IHasRelations, error) {
+	return func(tx *sqlx.Tx, models []IHasRelations) ([]IHasRelations, error) {
 		keys := make([]any, 0, len(models))
 		for i := range models {
 			keys = append(keys, getModelForeignKey(models[i].(TModel)))
@@ -167,14 +218,14 @@ func makeBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 
 		queryStr, args, err := sqlx.In(query, keys)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		queryStr = tx.Rebind(queryStr)
 
 		related := make([]TRelated, 0, len(models))
 		err = tx.Select(&related, queryStr, args...)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		relMap := make(map[any]*TRelated)
@@ -186,32 +237,28 @@ func makeBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 		for i := range models {
 			if tModel, ok := models[i].(TModel); ok {
 				if found, ok := relMap[getModelForeignKey(tModel)]; ok {
-					assign(&tModel, found)
+					tModel = assign(tModel, *found)
 					models[i] = tModel
 				}
 			}
 		}
 
-		toReturnMap := make(map[any]any, len(related))
-		for key, r := range relMap {
-			toReturnMap[key] = r
-		}
 		toReturnSlice := make([]IHasRelations, len(related))
 		for i, r := range related {
 			toReturnSlice[i] = r
 		}
 
-		return toReturnMap, toReturnSlice, nil
+		return toReturnSlice, nil
 	}
 }
 
 func makeHasManyBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 	query string,
-	assign func(*TModel, []TRelated),
+	assign func(TModel, []TRelated) TModel,
 	getModelForeignKey func(TModel) any,
 	getRelatedPrimaryKey func(TRelated) any,
 ) BatchRelationLoaderFunc {
-	return func(tx *sqlx.Tx, models []IHasRelations) (map[any]any, []IHasRelations, error) {
+	return func(tx *sqlx.Tx, models []IHasRelations) ([]IHasRelations, error) {
 		keys := make([]any, 0, len(models))
 		for i := range models {
 			keys = append(keys, models[i].GetPrimaryKey())
@@ -219,14 +266,14 @@ func makeHasManyBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 
 		queryStr, args, err := sqlx.In(query, keys)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		queryStr = tx.Rebind(queryStr)
 
 		related := make([]TRelated, len(models))
 		err = tx.Select(&related, queryStr, args...)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		relMap := make(map[any][]TRelated)
@@ -238,22 +285,17 @@ func makeHasManyBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 		for i := range models {
 			if tModel, ok := models[i].(TModel); ok {
 				if found, ok := relMap[getModelForeignKey(tModel)]; ok {
-					assign(&tModel, found)
-					models[i] = tModel
+					models[i] = assign(tModel, found)
 				}
 			}
 		}
 
-		toReturnMap := make(map[any]any, len(related))
-		for key, r := range relMap {
-			toReturnMap[key] = r
-		}
 		toReturnSlice := make([]IHasRelations, len(related))
 		for i, r := range related {
 			toReturnSlice[i] = r
 		}
 
-		return toReturnMap, toReturnSlice, nil
+		return toReturnSlice, nil
 	}
 }
 
@@ -261,7 +303,7 @@ func (r RelationRegistry) LoadRelations(tx *sqlx.Tx, model *IHasRelations, with 
 	for name := range with {
 		if relation, ok := r.Relations[name]; ok {
 			loaderFn := relation.single
-			relatedMap, relatedSlice, err := loaderFn(tx, model)
+			relatedSlice, err := loaderFn(tx, model)
 			if err != nil {
 				return err
 			}
@@ -272,10 +314,14 @@ func (r RelationRegistry) LoadRelations(tx *sqlx.Tx, model *IHasRelations, with 
 					rRelated.LoadBatchRelations(tx, relatedSlice, nestedWithMap)
 				}
 
-				key := (*model).GetPrimaryKey()
-				if _, ok := relatedMap[key]; ok {
-					assignFn := relation.assign
-					assignFn(model, relatedMap[key])
+				// IF kind is has_one or belongs_to, we simply assign related to the model (there is only one)
+				// ELSE IF kind is has_many, we simply assign the entire related collection to the model
+				if relation.kind == "has_one" || relation.kind == "belongs_to" {
+					m := relation.assign(*model, relatedSlice[0])
+					*model = m
+				} else if relation.kind == "has_many" {
+					m := relation.assign(*model, relatedSlice)
+					*model = m
 				}
 			}
 		}
@@ -287,7 +333,7 @@ func (r RelationRegistry) LoadBatchRelations(tx *sqlx.Tx, models []IHasRelations
 	for name := range with {
 		if relation, ok := r.Relations[name]; ok {
 			loaderFn := relation.batch
-			relatedMap, relatedSlice, err := loaderFn(tx, models)
+			relatedSlice, err := loaderFn(tx, models)
 			if err != nil {
 				return err
 			}
@@ -297,12 +343,38 @@ func (r RelationRegistry) LoadBatchRelations(tx *sqlx.Tx, models []IHasRelations
 				if nestedWithMap, ok := with[name].(map[string]any); ok {
 					rRelated.LoadBatchRelations(tx, relatedSlice, nestedWithMap)
 				}
+				// logging.LogDebug("loadBatchRelations -- after loading related", name, relation.kind)
 
-				for i := range models {
-					key := (models[i]).GetPrimaryKey()
-					if _, ok := relatedMap[key]; ok {
-						assignFn := relation.assign
-						assignFn(models[i], relatedMap[key])
+				// IF kind is has_one or belongs_to, we assign each related to the corresponding model (key by model pk)
+				// ELSE IF kind is has_many, we assign the entire related collection to the corresponding model model (collect/group by model pk)
+				if kind := relation.kind; kind == "has_one" || kind == "belongs_to" {
+					// logging.LogDebug("loadBatchRelations:has_one,belongs_to -- relatedSlice", name, relatedSlice)
+					m := make(map[any]IHasRelations, len(relatedSlice))
+					for _, related := range relatedSlice {
+						key := relation.getRelatedPk(related)
+						m[key] = related
+					}
+					logging.LogDebug("loadBatchRelations:has_one,belongs_to -- m", name, m)
+
+					for i := range models {
+						key := relation.getModelFk(models[i])
+						if _, ok := m[key]; ok {
+							// logging.LogDebug("loadBatchRelations:has_one,belongs_to -- found related, m[key]", name, m[key])
+							models[i] = relation.assign(models[i], m[key])
+						}
+					}
+				} else if kind == "has_many" {
+					m := make(map[any][]IHasRelations)
+					for _, related := range relatedSlice {
+						key := relation.getRelatedPk(related)
+						m[key] = append(m[key], related)
+					}
+
+					for i := range models {
+						key := relation.getModelFk(models[i])
+						if _, ok := m[key]; ok {
+							models[i] = relation.assign(models[i], m[key])
+						}
 					}
 				}
 			}

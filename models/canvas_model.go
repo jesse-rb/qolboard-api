@@ -36,7 +36,7 @@ func init() {
 		CanvasRelations,
 		"SELECT * FROM view_users WHERE id = $1",
 		"SELECT * FROM view_users WHERE id IN (?)",
-		func(c *Canvas, u *User) { c.User = u },
+		func(c Canvas, u User) Canvas { c.User = &u; return c },
 		func(c Canvas) any { return c.UserUuid },
 		func(u User) any { return u.Uuid },
 	)
@@ -47,7 +47,7 @@ func init() {
 		CanvasRelations,
 		"SELECT * FROM canvas_shared_invitations WHERE id = $1",
 		"SELECT * FROM canvas_shared_invitations WHERE id IN (?)",
-		func(c *Canvas, csi []CanvasSharedInvitation) { c.CanvasSharedInvitations = csi },
+		func(c Canvas, csi []CanvasSharedInvitation) Canvas { c.CanvasSharedInvitations = csi; return c },
 		func(c Canvas) any { return c.ID },
 		func(csi CanvasSharedInvitation) any { return csi.CanvasId },
 	)
