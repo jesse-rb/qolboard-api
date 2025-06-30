@@ -7,21 +7,6 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// var relationLoaders model.RelationLoaders[model.CanvasSharedInvitation] = model.RelationLoaders[model.CanvasSharedInvitation]{
-// 	BelongsTo: map[string]model.BelongsToLoader[model.CanvasSharedInvitation]{
-// 		"canvas": {
-// 			Loader: func(tx *sqlx.Tx, m *model.CanvasSharedInvitation) error {
-// 				return nil
-// 			},
-// 			BatchLoader: func(tx *sqlx.Tx, m []model.CanvasSharedInvitation) error {
-// 				return nil
-// 			},
-// 		},
-// 	},
-// 	HasOne:  map[string]model.HasOneLoader[model.CanvasSharedInvitation]{},
-// 	HasMany: map[string]model.HasManyLoader[model.CanvasSharedInvitation]{},
-// }
-
 func NewCanvasSharedInvitation(userUuid string, canvasId uint64) (*model.CanvasSharedInvitation, error) {
 	code, err := service.GenerateCode(256)
 	if err != nil {

@@ -18,9 +18,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type getParams struct {
+	controller.GetParams
+}
+
 type indexParams struct {
 	controller.IndexParams
-	With []string `form:"with[]"`
 }
 
 func Index(c *gin.Context) {
@@ -28,8 +31,8 @@ func Index(c *gin.Context) {
 		IndexParams: controller.IndexParams{
 			Page:  1,
 			Limit: 100,
+			With:  make([]string, 0),
 		},
-		With: make([]string, 0),
 	}
 
 	if err := c.ShouldBindQuery(&params); err != nil {
@@ -51,8 +54,6 @@ func Index(c *gin.Context) {
 		return
 	}
 
-	// canvas_model.LoadBatchRelations(canvases, tx, with)
-
 	err = relations_service.LoadBatch(tx, model.CanvasRelations, canvases, params.With)
 	if err != nil {
 		tx.Rollback()
@@ -67,48 +68,56 @@ func Index(c *gin.Context) {
 	})
 }
 
-//	func Get(c *gin.Context) {
-//		db := database_config.GetDatabase()
-//
-//		claims := auth_service.GetClaims(c)
-//		userUuid := claims.Subject
-//
-//		var paramId string = c.Param("canvas_id")
-//		id, err := strconv.ParseUint(paramId, 10, 64)
-//		if err != nil {
-//			error_service.PublicError(c, "Canvas id must be a valid integer", http.StatusUnprocessableEntity, "id", paramId, "canvas")
-//			return
-//		}
-//
-//		var canvas model.Canvas = model.Canvas{}
-//		canvas.ID = id
-//
-//		query := db.Connection
-//		model.Canvas{}.LeftJoinCanvasSharedAccessOnUser(query, userUuid)
-//		model.Canvas{}.BelongsToUser(query, userUuid)
-//		query.Or(model.CanvasSharedAccess{}.BelongsToCanvas(query, &id))
-//		result := query.Preload("User").
-//			Preload("CanvasSharedAccess").
-//			Preload("CanvasSharedAccess.User").
-//			Preload("CanvasSharedInvitation").
-//			First(&canvas)
-//
-//		if result.Error != nil {
-//			if result.Error == gorm.ErrRecordNotFound {
-//				error_service.PublicError(c, "Canvas not found", http.StatusNotFound, "id", paramId, "canvas")
-//				return
-//			}
-//			error_service.InternalError(c, result.Error.Error())
-//		}
-//
-//		if canvas.CanvasSharedInvitation != nil {
-//			for i, csi := range canvas.CanvasSharedInvitation {
-//				canvas.CanvasSharedInvitation[i] = csi.Response()
-//			}
-//		}
-//
-//		response_service.SetJSON(c, canvas)
-//	}
+func Get(c *gin.Context) {
+	var params getParams = getParams{
+		GetParams: controller.GetParams{
+			With: make([]string, 0),
+		},
+	}
+
+	if err := c.ShouldBindQuery(&params); err != nil {
+		error_service.ValidationError(c, err)
+		return
+	}
+
+	// claims := auth_service.GetClaims(c)
+
+	var paramId string = c.Param("canvas_id")
+	id, err := strconv.ParseUint(paramId, 10, 64)
+	if err != nil {
+		error_service.PublicError(c, "Canvas id must be a valid integer", http.StatusUnprocessableEntity, "id", paramId, "canvas")
+		return
+	}
+
+	tx, err := database_config.DB(c)
+	defer tx.Commit()
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
+	}
+
+	canvas, err := canvas_model.Get(tx, id)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
+	}
+
+	err = relations_service.Load(tx, model.CanvasRelations, canvas, params.With)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
+	}
+
+	resp := generator_service.BuildResponse(*canvas)
+
+	response_service.SetJSON(c, map[string]any{
+		"data": resp,
+	})
+}
+
 func Save(c *gin.Context) {
 	claims := auth_service.GetClaims(c)
 	userUuid := claims.Subject

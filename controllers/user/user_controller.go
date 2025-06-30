@@ -2,6 +2,7 @@ package user_controller
 
 import (
 	database_config "qolboard-api/config/database"
+	controller "qolboard-api/controllers"
 	model "qolboard-api/models"
 	user_model "qolboard-api/models/user"
 	auth_service "qolboard-api/services/auth"
@@ -14,12 +15,14 @@ import (
 )
 
 type getParams struct {
-	With []string `form:"with[]"`
+	controller.GetParams
 }
 
 func Get(c *gin.Context) {
 	var params getParams = getParams{
-		With: make([]string, 0),
+		GetParams: controller.GetParams{
+			With: make([]string, 0),
+		},
 	}
 
 	if err := c.ShouldBindQuery(&params); err != nil {

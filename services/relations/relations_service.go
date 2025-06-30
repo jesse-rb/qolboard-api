@@ -47,7 +47,7 @@ func HasOne[TModel IHasRelations, TRelated IHasRelations](
 	getRelatedPrimaryKey func(TRelated) any,
 ) {
 	r.Relations[name] = Relation{
-		single:       makeSingleLoader(single, assign),
+		single:       makeSingleLoader(single, assign, getModelForeignKey),
 		batch:        makeBatchLoader(batch, assign, getModelForeignKey, getRelatedPrimaryKey),
 		assign:       makeAssignFunc(assign),
 		getModelFk:   makeGetModelPkFunc(getModelForeignKey),
@@ -66,7 +66,7 @@ func BelongsTo[TModel IHasRelations, TRelated IHasRelations](
 	getRelatedPrimaryKey func(TRelated) any,
 ) {
 	r.Relations[name] = Relation{
-		single:       makeSingleLoader(single, assign),
+		single:       makeSingleLoader(single, assign, getModelForeignKey),
 		batch:        makeBatchLoader(batch, assign, getModelForeignKey, getRelatedPrimaryKey),
 		assign:       makeAssignFunc(assign),
 		getModelFk:   makeGetModelPkFunc(getModelForeignKey),
@@ -165,10 +165,11 @@ func makeGetRelatedPkFunc[TRelated IHasRelations](
 func makeSingleLoader[TModel IHasRelations, TRelated IHasRelations](
 	query string,
 	assign func(TModel, TRelated) TModel,
+	getModelForeignKey func(TModel) any,
 ) SingleRelationLoaderFunc {
 	return func(tx *sqlx.Tx, model *IHasRelations) ([]IHasRelations, error) {
 		related := new(TRelated)
-		err := tx.Get(related, query, (*model).GetPrimaryKey())
+		err := tx.Get(related, query, getModelForeignKey((*model).(TModel)))
 		if err != nil {
 			return nil, err
 		}

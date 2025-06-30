@@ -7,6 +7,8 @@ import (
 	canvas_shared_invitation_model "qolboard-api/models/canvas_shared_invitation"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
+	generator_service "qolboard-api/services/generator"
+	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
 	"strconv"
 
@@ -17,7 +19,7 @@ type IndexQuery struct {
 	CanvasId uint64   `form:"canvas_id"`
 	Page     uint64   `form:"page"`
 	Limit    uint64   `form:"limit"`
-	With     []string `form:"with[]" binding:"dive,oneof=canvas canvas_shared_access"`
+	With     []string `form:"with[]"`
 }
 
 func Create(c *gin.Context) {
@@ -70,8 +72,8 @@ func Index(c *gin.Context) {
 	// claims := auth_service.GetClaims(c)
 
 	// Get query params
-	var queryValues IndexQuery
-	if err := c.ShouldBindQuery(&queryValues); err != nil {
+	var params IndexQuery
+	if err := c.ShouldBindQuery(&params); err != nil {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
@@ -84,7 +86,14 @@ func Index(c *gin.Context) {
 		return
 	}
 
-	data, err := canvas_shared_invitation_model.GetAllForCanvas(tx, queryValues.CanvasId)
+	data, err := canvas_shared_invitation_model.GetAllForCanvas(tx, params.CanvasId)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
+	}
+
+	err = relations_service.LoadBatch(tx, model.CanvasSharedInvitationRelations, data, params.With)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		tx.Rollback()
@@ -93,13 +102,10 @@ func Index(c *gin.Context) {
 
 	tx.Commit()
 
-	// Format response
-	for i := range data {
-		data[i].Response()
-	}
+	resp := generator_service.BuildResponse(data)
 
 	response_service.SetJSON(c, gin.H{
-		"data": data,
+		"data": resp,
 	})
 }
 

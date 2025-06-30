@@ -66,7 +66,7 @@ func main() {
 		// User Canvas routes
 		rUser.POST("/canvas", canvas_controller.Save)
 		rUser.GET("/canvas", canvas_controller.Index)
-		// rUser.GET("/canvas/:canvas_id", canvas_controller.Get)
+		rUser.GET("/canvas/:canvas_id", canvas_controller.Get)
 		rUser.POST("/canvas/:canvas_id", canvas_controller.Save)
 		// rUser.DELETE("/canvas/:canvas_id", canvas_controller.Delete)
 		//

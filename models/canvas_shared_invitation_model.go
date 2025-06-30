@@ -16,12 +16,41 @@ type CanvasSharedInvitation struct {
 	CanvasId           uint64                `json:"canvas_id" db:"canvas_id" gorm:"not null"`
 	UserUuid           string                `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:id;type:uuid;not null;index"`
 	Canvas             *Canvas               `json:"canvas"`
+	User               *User                 `json:"user"`
 	CanvasSharedAccess []*CanvasSharedAccess `json:"canvas_shared_access"`
 
 	InviteLink string `json:"link" gorm:"-"` // Calculated on the fly
 }
 
 var CanvasSharedInvitationRelations relations_service.RelationRegistry = relations_service.NewRelationRegistry()
+
+func init() {
+	relations_service.BelongsTo(
+		"canvas",
+		CanvasSharedInvitationRelations,
+		"SELECT * FROM canvases WHERE id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvases WHERE id IN (?) AND deleted_at IS NULL",
+		func(csi CanvasSharedInvitation, c Canvas) CanvasSharedInvitation {
+			csi.Canvas = &c
+			return csi
+		},
+		func(csi CanvasSharedInvitation) any { return csi.CanvasId },
+		func(c Canvas) any { return c.ID },
+	)
+
+	relations_service.BelongsTo(
+		"user",
+		CanvasSharedInvitationRelations,
+		"SELECT * FROM view_users WHERE id = $1",
+		"SELECT * FROM view_users WHERE id IN (?)",
+		func(csi CanvasSharedInvitation, u User) CanvasSharedInvitation {
+			csi.User = &u
+			return csi
+		},
+		func(csi CanvasSharedInvitation) any { return csi.UserUuid },
+		func(u User) any { return u.Uuid },
+	)
+}
 
 func (csi CanvasSharedInvitation) GetRelations() relations_service.RelationRegistry {
 	return CanvasSharedInvitationRelations

@@ -45,8 +45,8 @@ func init() {
 	relations_service.HasMany(
 		"canvas_shared_invitations",
 		CanvasRelations,
-		"SELECT * FROM canvas_shared_invitations WHERE id = $1",
-		"SELECT * FROM canvas_shared_invitations WHERE id IN (?)",
+		"SELECT * FROM canvas_shared_invitations WHERE canvas_id = $1",
+		"SELECT * FROM canvas_shared_invitations WHERE canvas_id IN (?)",
 		func(c Canvas, csi []CanvasSharedInvitation) Canvas { c.CanvasSharedInvitations = csi; return c },
 		func(c Canvas) any { return c.ID },
 		func(csi CanvasSharedInvitation) any { return csi.CanvasId },
