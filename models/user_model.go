@@ -7,9 +7,10 @@ import (
 )
 
 type User struct {
-	Uuid     string   `json:"uuid" gorm:"column:id;primaryKey;type:uuid" db:"id"`
-	Email    string   `json:"email" db:"email"`
-	Canvases []Canvas `json:"canvases"`
+	Uuid                 string               `json:"uuid" gorm:"column:id;primaryKey;type:uuid" db:"id"`
+	Email                string               `json:"email" db:"email"`
+	Canvases             []Canvas             `json:"canvases"`
+	CanvasSharedAccesses []CanvasSharedAccess `json:"canvas_shared_accesses"`
 }
 
 var UserRelations = relations_service.NewRelationRegistry()
@@ -37,6 +38,21 @@ func init() {
 		func(u User, c []Canvas) User { u.Canvases = c; return u },
 		func(u User) any { return u.Uuid },
 		func(c Canvas) any { return c.UserUuid },
+	)
+
+	relations_service.HasMany(
+		"canvas_shared_accesses",
+		CanvasRelations,
+		"SELECT * FROM canvas_shared_accesses WHERE user_uuid = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvas_shared_accesses WHERE user_uuid IN (?) AND deleted_at IS NULL",
+		func(u User, csa []CanvasSharedAccess) User {
+			u.CanvasSharedAccesses = csa
+			return u
+		},
+		func(u User) any { return u.Uuid },
+		func(csa CanvasSharedAccess) any {
+			return csa.UserUuid
+		},
 	)
 }
 

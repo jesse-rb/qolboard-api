@@ -1,6 +1,9 @@
 package model
 
 import (
+	relations_service "qolboard-api/services/relations"
+	"time"
+
 	"github.com/jmoiron/sqlx"
 	"gorm.io/gorm"
 )
@@ -16,43 +19,94 @@ type CanvasSharedAccess struct {
 	User                     *User                   `json:"user"`
 }
 
-func (csa CanvasSharedAccess) BelongsToCanvas(db *gorm.DB, canvasId *uint64) *gorm.DB {
-	if canvasId == nil {
-		db = db.Where("canvas_shared_accesses.canvas_id = canvas.id")
-	} else {
-		db = db.Where("canvas_shared_accesses.canvas_id", *canvasId)
-	}
-	return db
+var CanvasSharedAccessRelations relations_service.RelationRegistry = relations_service.NewRelationRegistry()
+
+func init() {
+	relations_service.BelongsTo(
+		"user",
+		CanvasSharedAccessRelations,
+		"SELECT * FROM view_users WHERE id = $1",
+		"SELECT * FROM view_users WHERE id IN (?)",
+		func(csa CanvasSharedAccess, u User) CanvasSharedAccess {
+			csa.User = &u
+			return csa
+		},
+		func(csa CanvasSharedAccess) any {
+			return csa.UserUuid
+		},
+		func(u User) any {
+			return u.Uuid
+		},
+	)
+	relations_service.BelongsTo(
+		"canvas",
+		CanvasSharedAccessRelations,
+		"SELECT * FROM canvases WHERE id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvases WHERE id IN (?) AND deleted_at IS NULL",
+		func(csa CanvasSharedAccess, c Canvas) CanvasSharedAccess {
+			csa.Canvas = &c
+			return csa
+		},
+		func(csa CanvasSharedAccess) any {
+			return csa.CanvasId
+		},
+		func(c Canvas) any {
+			return c.ID
+		},
+	)
+	relations_service.BelongsTo(
+		"canvas_shared_invitation",
+		CanvasSharedAccessRelations,
+		"SELECT * FROM canvas_shared_invitations WHERE id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvas_shared_invitations WHERE id IN (?) AND deleted_at IS NULL",
+		func(csa CanvasSharedAccess, csi CanvasSharedInvitation) CanvasSharedAccess {
+			csa.CanvasSharedInvitation = &csi
+			return csa
+		},
+		func(csa CanvasSharedAccess) any {
+			return csa.CanvasSharedInvitationId
+		},
+		func(csi CanvasSharedInvitation) any {
+			return csi.ID
+		},
+	)
 }
 
-func CanvasSharedAccessBelongsToCanvasSharedInvitation(canvasId uint64) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("canvas_shared_accesses.canvas_id", canvasId)
-	}
+func (csa CanvasSharedAccess) GetRelations() relations_service.RelationRegistry {
+	return CanvasSharedAccessRelations
 }
 
-func CanvasSharedAccessInnerJoinCanvasOnCanvasOwner(userUuid string) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		return db.Joins("INNER JOIN canvas ON canvas.id = canvas_shared_accesses.canvas_id AND canvas.user_uuid = ?", userUuid)
-	}
+func (csa CanvasSharedAccess) GetPrimaryKey() any {
+	return csa.ID
 }
 
-func CanvasSharedAccessLeftJoinCanvasOnCanvasOwner(userUuid string) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		return db.Joins("LEFT JOIN canvas ON canvas.id = canvas_shared_accesses.canvas_id AND canvas.user_uuid = ?", userUuid)
-	}
-}
+func (csa *CanvasSharedAccess) Insert(tx *sqlx.Tx) error {
+	now := time.Now()
 
-func (csa CanvasSharedAccess) BelongsToUser(db *gorm.DB, userUuid string) *gorm.DB {
-	return db.Where("canvas_shared_accesses.user_uuid", userUuid)
-}
-
-func (c CanvasSharedAccess) GetAllForCanvasSharedInvitation(tx *sqlx.Tx, canvasSharedInvitationId uint64) ([]*CanvasSharedAccess, error) {
-	var canvasSharedAccesses []*CanvasSharedAccess
-	err := tx.Select(&canvasSharedAccesses, "SELECT * FROM canvas_shared_accesses csa WHERE csa.canvas_shared_invitation_id = $1 AND deleted_at IS NULL", canvasSharedInvitationId)
+	err := tx.Get(csa, `
+INSERT INTO canvas_shared_accesses(created_at, updated_at, user_uuid, canvas_id, canvas_shared_invitation_id)
+VALUES($1, $2, get_user_uuid(), $3, $4) RETURNING *
+	`, now, now, csa.CanvasId, csa.CanvasSharedInvitationId)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return canvasSharedAccesses, err
+	return nil
+}
+
+func (csa *CanvasSharedAccess) Delete(tx *sqlx.Tx) error {
+	now := time.Now()
+
+	err := tx.Get(csa, `
+UPDATE canvas_shared_accesses
+SET deleted_at = $1, updated_at = $2
+WHERE id = $3
+AND (
+	user_uuid = get_user_uuid()
+	OR (SELECT user_uuid FROM canvases WHERE canvas.id = canvas_shared_accesses.canvas_id) = get_user_uuid()
+) RETURNING *
+`,
+		now, now, csa.ID,
+	)
+	return err
 }

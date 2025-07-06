@@ -2,8 +2,6 @@
 package relations_service
 
 import (
-	"qolboard-api/services/logging"
-
 	"github.com/jesse-rb/imissphp-go"
 	"github.com/jmoiron/sqlx"
 )
@@ -114,11 +112,6 @@ func makeAssignManyFunc[TModel IHasRelations, TRelated IHasRelations](
 	return func(model IHasRelations, related any) IHasRelations {
 		m, ok1 := model.(TModel)
 		r, ok2 := related.([]IHasRelations)
-
-		logging.LogDebug("makeAssignManyFunc", "ok1, ok2", map[string]any{
-			"ok1": ok1,
-			"ok2": ok2,
-		})
 
 		if ok1 && ok2 {
 			_r := make([]TRelated, 0)
@@ -344,23 +337,19 @@ func (r RelationRegistry) LoadBatchRelations(tx *sqlx.Tx, models []IHasRelations
 				if nestedWithMap, ok := with[name].(map[string]any); ok {
 					rRelated.LoadBatchRelations(tx, relatedSlice, nestedWithMap)
 				}
-				// logging.LogDebug("loadBatchRelations -- after loading related", name, relation.kind)
 
 				// IF kind is has_one or belongs_to, we assign each related to the corresponding model (key by model pk)
 				// ELSE IF kind is has_many, we assign the entire related collection to the corresponding model model (collect/group by model pk)
 				if kind := relation.kind; kind == "has_one" || kind == "belongs_to" {
-					// logging.LogDebug("loadBatchRelations:has_one,belongs_to -- relatedSlice", name, relatedSlice)
 					m := make(map[any]IHasRelations, len(relatedSlice))
 					for _, related := range relatedSlice {
 						key := relation.getRelatedPk(related)
 						m[key] = related
 					}
-					logging.LogDebug("loadBatchRelations:has_one,belongs_to -- m", name, m)
 
 					for i := range models {
 						key := relation.getModelFk(models[i])
 						if _, ok := m[key]; ok {
-							// logging.LogDebug("loadBatchRelations:has_one,belongs_to -- found related, m[key]", name, m[key])
 							models[i] = relation.assign(models[i], m[key])
 						}
 					}

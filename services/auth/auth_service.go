@@ -22,13 +22,26 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+// Gets the authenticated user's claims from the JWT
+// panics if unsuccessful
 func GetClaims(c *gin.Context) *Claims {
-	claims, exists := c.Get("claims")
+	claimsAny, exists := c.Get("claims")
 	if !exists {
 		panic("No claims set")
 	}
 
-	return claims.(*Claims)
+	if claims, ok := claimsAny.(*Claims); ok {
+		return claims
+	} else {
+		panic("Unexpected claims structure")
+	}
+}
+
+// Gets the authenticated user's uuid based on the JWT claims
+// panics if unsuccessful
+func Auth(c *gin.Context) string {
+	claims := GetClaims(c)
+	return claims.Subject
 }
 
 func SetAuthCookie(c *gin.Context, token string, expiresIn int) {

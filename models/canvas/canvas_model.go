@@ -77,7 +77,21 @@ type DOMMatrixs struct {
 
 func Get(tx *sqlx.Tx, canvasId uint64) (*model.Canvas, error) {
 	canvas := &model.Canvas{}
-	err := tx.Get(canvas, "SELECT * FROM canvases c WHERE c.id = $1 AND deleted_at IS NULL", canvasId)
+	err := tx.Get(canvas, `
+SELECT *
+FROM canvases c
+WHERE c.id = $1
+AND deleted_at IS NULL
+AND (
+	c.user_uuid = get_user_uuid()
+	OR EXISTS (
+		SELECT csa.id
+		FROM canvas_shared_accesses csa
+		WHERE csa.user_uuid = get_user_uuid()
+		AND csa.canvas_id = c.id
+	)
+)
+	`, canvasId)
 	if err != nil {
 		return nil, err
 	}
@@ -87,8 +101,24 @@ func Get(tx *sqlx.Tx, canvasId uint64) (*model.Canvas, error) {
 
 func GetAll(tx *sqlx.Tx, limit int, page int) ([]model.Canvas, error) {
 	offset := max(page-1, 0) * limit
+	limit = min(limit, 100)
 	var canvases []model.Canvas
-	err := tx.Select(&canvases, "SELECT * FROM canvases c WHERE deleted_at IS NULL LIMIT $1 OFFSET $2", limit, offset)
+	err := tx.Select(&canvases, `
+SELECT *
+FROM canvases c
+WHERE deleted_at IS NULL
+AND (
+	user_uuid = get_user_uuid()
+	OR EXISTS (
+		SELECT csa.id
+		FROM canvas_shared_accesses csa
+		WHERE csa.user_uuid = get_user_uuid()
+		AND csa.canvas_id = c.id
+	)
+)
+LIMIT $1
+OFFSET $2
+	`, limit, offset)
 	if err != nil {
 		return nil, err
 	}

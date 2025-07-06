@@ -5,7 +5,6 @@ import (
 	controller "qolboard-api/controllers"
 	model "qolboard-api/models"
 	user_model "qolboard-api/models/user"
-	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	generator_service "qolboard-api/services/generator"
 	relations_service "qolboard-api/services/relations"
@@ -30,8 +29,6 @@ func Get(c *gin.Context) {
 		return
 	}
 
-	claims := auth_service.GetClaims(c)
-
 	tx, err := database_config.DB(c)
 	defer tx.Commit()
 	if err != nil {
@@ -40,7 +37,7 @@ func Get(c *gin.Context) {
 		return
 	}
 
-	user, err := user_model.Get(tx, claims.Subject)
+	user, err := user_model.Get(tx)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		tx.Rollback()

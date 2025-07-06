@@ -51,6 +51,21 @@ func init() {
 		func(c Canvas) any { return c.ID },
 		func(csi CanvasSharedInvitation) any { return csi.CanvasId },
 	)
+
+	relations_service.HasMany(
+		"canvas_shared_accesses",
+		CanvasRelations,
+		"SELECT * FROM canvas_shared_accesses WHERE canvas_id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvas_shared_accesses WHERE canvas_id IN (?) AND deleted_at IS NULL",
+		func(c Canvas, csa []CanvasSharedAccess) Canvas {
+			c.CanvasSharedAccesses = csa
+			return c
+		},
+		func(c Canvas) any { return c.ID },
+		func(csa CanvasSharedAccess) any {
+			return csa.CanvasId
+		},
+	)
 }
 
 func (c *Canvas) Save(tx *sqlx.Tx) error {
@@ -61,9 +76,9 @@ func (c *Canvas) Save(tx *sqlx.Tx) error {
 	}
 
 	if c.ID > 0 {
-		err = tx.Get(c, "UPDATE canvas SET canvas_data = $1, updated_at = $2 WHERE user_uuid = $3 AND id = $4 AND deleted_at IS NULL RETURNING *", string(canvasDataBytes), now, c.UserUuid, c.ID)
+		err = tx.Get(c, "UPDATE canvas SET canvas_data = $1, updated_at = $2 WHERE user_uuid = get_user_uuid() AND id = $3 AND deleted_at IS NULL RETURNING *", string(canvasDataBytes), now, c.ID)
 	} else {
-		err = tx.Get(c, "INSERT INTO canvases(canvas_data, created_at, updated_at, user_uuid) VALUES($1, $2, $3, $4) RETURNING *", string(canvasDataBytes), now, now, c.UserUuid)
+		err = tx.Get(c, "INSERT INTO canvases(canvas_data, created_at, updated_at, user_uuid) VALUES($1, $2, $3, get_user_uuid()) RETURNING *", string(canvasDataBytes), now, now)
 	}
 
 	if err != nil {
@@ -75,7 +90,8 @@ func (c *Canvas) Save(tx *sqlx.Tx) error {
 
 func (c *Canvas) Delete(tx *sqlx.Tx) error {
 	now := time.Now()
-	err := tx.Get(c, "UPDATE canvas SET deleted_at = $1 WHERE AND id = $2 AND deleted_at IS NULL RETURNING *", now, c.ID)
+	err := tx.Get(c, "UPDATE canvas SET deleted_at = $1 WHERE id = $2 AND user_uuid = get_user_uuid() AND deleted_at IS NULL RETURNING *", now, c.ID)
+	// TODO: Maybe consider soft deleting all dependants here?
 
 	return err
 }

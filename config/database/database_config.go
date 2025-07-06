@@ -33,7 +33,7 @@ func beginDbTransaction(c *gin.Context) (*sqlx.Tx, error) {
 		return nil, err
 	}
 
-	// Set the required databse session variables for the transaction, for RLS purposes
+	// Set the required databse session variables for the transaction, for RLS purposes and application query filters
 	_, err = tx.Exec("SELECT set_user_uuid($1)", user_uuid)
 	if err != nil {
 		tx.Rollback()
