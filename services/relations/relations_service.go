@@ -2,6 +2,8 @@
 package relations_service
 
 import (
+	"qolboard-api/services/logging"
+
 	"github.com/jesse-rb/imissphp-go"
 	"github.com/jmoiron/sqlx"
 )
@@ -189,6 +191,8 @@ func makeHasManySingleLoader[TModel IHasRelations, TRelated IHasRelations](
 			tModel = assign(tModel, related)
 			*model = tModel
 		}
+
+		logging.LogDebug("-----", "here", related)
 
 		toReturnSlice := make([]IHasRelations, len(related))
 		for i, r := range related {

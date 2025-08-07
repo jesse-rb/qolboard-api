@@ -4,27 +4,31 @@ import (
 	"log"
 	"os"
 
-	slogger "github.com/jesse-rb/slogger-go"
+	slogger "github.com/jesse-rb/slogger-go/v2"
 )
 
 var (
-	infoLogger  = slogger.New(os.Stdout, slogger.ANSIGreen, "", log.LUTC)
-	errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "", log.LUTC)
-	debugLogger = slogger.New(os.Stdout, slogger.ANSIYellow, "", log.LUTC)
+	infoLogger  = slogger.New(os.Stdout, slogger.ANSIBlue, "", log.LUTC+log.Lshortfile, 3)
+	errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "", log.LUTC, 3)
+	debugLogger = slogger.New(os.Stdout, slogger.ANSIYellow, "", log.LUTC, 3)
 )
 
 func LogInfo(tag string, msg string, data interface{}) {
-	infoLogger.Log(tag, msg, data)
+	logGeneric(infoLogger, tag, msg, data)
 }
 
 func LogError(tag string, msg string, data interface{}) {
-	errorLogger.Log(tag, msg, data)
+	logGeneric(errorLogger, tag, msg, data)
 }
 
 func LogDebug(tag string, msg string, data interface{}) {
-	debugLogger.Log(tag, msg, data)
+	logGeneric(debugLogger, tag, msg, data)
 }
 
 func Here() {
-	debugLogger.Log("HERE", "", nil)
+	logGeneric(debugLogger, "HERE", "HERE", nil)
+}
+
+func logGeneric(logger *slogger.Logger, tag string, msg string, data interface{}) {
+	logger.Log(tag, msg, data)
 }

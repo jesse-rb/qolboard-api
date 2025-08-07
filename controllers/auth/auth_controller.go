@@ -1,6 +1,9 @@
 package auth_controller
 
 import (
+	"fmt"
+	"net/http"
+	"os"
 	model "qolboard-api/models"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
@@ -116,7 +119,10 @@ func Login(c *gin.Context) {
 
 	auth_service.SetAuthCookie(c, token, expiresIn)
 
-	response_service.SetJSON(c, gin.H{"data": response.User})
+	// Redirect to /user
+	appHost := os.Getenv("APP_HOST")
+	locatoin := fmt.Sprintf("%s/user", appHost)
+	c.Redirect(http.StatusFound, locatoin)
 }
 
 func Logout(c *gin.Context) {

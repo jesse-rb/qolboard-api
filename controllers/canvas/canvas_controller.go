@@ -146,11 +146,11 @@ func Save(c *gin.Context) {
 	}
 
 	tx, err := database_config.DB(c)
+	defer tx.Rollback()
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}
-	defer tx.Commit()
 
 	canvas := &model.Canvas{}
 	canvas.ID = id
@@ -160,7 +160,6 @@ func Save(c *gin.Context) {
 	err = canvas.Save(tx)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
-		tx.Rollback()
 		return
 	}
 
@@ -168,6 +167,7 @@ func Save(c *gin.Context) {
 		"msg":    fmt.Sprintf("Successfully saved canvas with id: %v", canvas.ID),
 		"canvas": canvas,
 	})
+	tx.Commit()
 }
 
 func Delete(c *gin.Context) {
@@ -190,16 +190,15 @@ func Delete(c *gin.Context) {
 	canvas.UserUuid = userUuid
 
 	tx, err := database_config.DB(c)
+	defer tx.Rollback()
 	if err != nil {
 		error_service.InternalError(c, err.Error())
-		tx.Rollback()
 		return
 	}
 
 	err = canvas.Delete(tx)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
-		tx.Rollback()
 		return
 	}
 
@@ -207,6 +206,8 @@ func Delete(c *gin.Context) {
 		"message": fmt.Sprintf("Successfully deleted canvas with id %v", canvas.ID),
 		"data":    generator_service.BuildResponse(canvas),
 	})
+
+	tx.Commit()
 }
 
 // func Websocket(c *gin.Context) {

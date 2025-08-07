@@ -10,6 +10,7 @@ import (
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	generator_service "qolboard-api/services/generator"
+	"qolboard-api/services/logging"
 	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
 	"strconv"
@@ -47,25 +48,24 @@ func Create(c *gin.Context) {
 	}
 
 	tx, err := database_config.DB(c)
+	defer tx.Rollback()
 	if err != nil {
 		error_service.InternalError(c, err.Error())
-		tx.Rollback()
 		return
 	}
 
 	err = canvasSharedInvitation.Save(tx)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
-		tx.Rollback()
 		return
 	}
 
 	tx.Commit()
 
-	canvasSharedInvitation.Response()
+	resp := generator_service.BuildResponse(*canvasSharedInvitation)
 
 	response_service.SetJSON(c, gin.H{
-		"data": canvasSharedInvitation,
+		"data": resp,
 	})
 }
 
@@ -121,22 +121,23 @@ func Delete(c *gin.Context) {
 	}
 
 	tx, err := database_config.DB(c)
+	defer tx.Rollback()
 	if err != nil {
 		error_service.InternalError(c, err.Error())
-		tx.Rollback()
 		return
 	}
 
-	csi := model.CanvasSharedInvitation{
-		Model: model.Model{
-			ID: id,
-		},
-	}
+	csi := model.CanvasSharedInvitation{}
+	csi.ID = id
+
+	debug := model.CanvasSharedInvitation{}
+	debug.ID = id
+	tx.Get(&debug, "SELECT * FROM canvas_shared_invitations WHERE id = $1 AND user_uuid = get_user_uuid() AND deleted_at IS NULL", id)
+	logging.LogDebug("canvas_shared_invitation_controller", "Finding the csi", debug)
 
 	err = csi.Delete(tx)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
-		tx.Rollback()
 		return
 	}
 
@@ -144,6 +145,8 @@ func Delete(c *gin.Context) {
 		"message": "successfully deleted shared canvas link",
 		"data":    generator_service.BuildResponse(csi),
 	})
+
+	tx.Commit()
 }
 
 func AcceptInvite(c *gin.Context) {
@@ -161,16 +164,15 @@ func AcceptInvite(c *gin.Context) {
 
 	// Find shared invitation by code and canvas id
 	tx, err := database_config.DB(c)
+	defer tx.Rollback()
 	if err != nil {
 		error_service.InternalError(c, err.Error())
-		tx.Rollback()
 		return
 	}
 
 	csi, err := canvas_shared_invitation_model.GetByCode(tx, canvasId, paramCode)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
-		tx.Rollback()
 		return
 	}
 
@@ -185,6 +187,8 @@ func AcceptInvite(c *gin.Context) {
 
 		csa.Insert(tx)
 	}
+
+	tx.Commit()
 
 	// Redirect to canvas
 	appHost := os.Getenv("APP_HOST")

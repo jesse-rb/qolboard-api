@@ -96,7 +96,7 @@ func (csi *CanvasSharedInvitation) Save(tx *sqlx.Tx) error {
 
 func (csi *CanvasSharedInvitation) Delete(tx *sqlx.Tx) error {
 	now := time.Now()
-	err := tx.Get(csi, "UPDATE canvas_shared_invitations SET deleted_at = $1 WHERE id = $2 AND user_uuid = $3 AND deleted_at IS NULL RETURNING *", now, csi.ID, csi.UserUuid)
+	err := tx.Get(csi, "UPDATE canvas_shared_invitations SET deleted_at = $1 WHERE id = $2 AND user_uuid = get_user_uuid() AND deleted_at IS NULL RETURNING *", now, csi.ID)
 
 	return err
 }

@@ -22,12 +22,11 @@ func NewCanvasSharedInvitation(userUuid string, canvasId uint64) (*model.CanvasS
 
 func GetByCode(tx *sqlx.Tx, canvasId uint64, code string) (model.CanvasSharedInvitation, error) {
 	csi := model.CanvasSharedInvitation{}
-	err := tx.Get(csi, `
+	err := tx.Get(&csi, `
 SELECT *
 FROM canvas_shared_invitations csi
 WHERE csi.canvas_id = $1
 AND csi.code = $2
-RETURNING *
 	`, canvasId, code)
 
 	return csi, err
