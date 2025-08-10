@@ -1,19 +1,18 @@
 package model
 
 import (
+	service "qolboard-api/services"
 	relations_service "qolboard-api/services/relations"
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"gorm.io/gorm"
 )
 
 type CanvasSharedAccess struct {
 	Model
-	DeletedAt                *gorm.DeletedAt         `json:"deletedAt"`
-	UserUuid                 string                  `json:"user_uuid"`
-	CanvasId                 uint64                  `json:"canvas_id"`
-	CanvasSharedInvitationId uint64                  `json:"canvas_shared_invitation_id"`
+	UserUuid                 string                  `json:"user_uuid" db:"user_uuid"`
+	CanvasId                 uint64                  `json:"canvas_id" db:"canvas_id"`
+	CanvasSharedInvitationId uint64                  `json:"canvas_shared_invitation_id" db:"canvas_shared_invitation_id"`
 	Canvas                   *Canvas                 `json:"canvas"`
 	CanvasSharedInvitation   *CanvasSharedInvitation `json:"canvas_shared_invitation"`
 	User                     *User                   `json:"user"`
@@ -109,4 +108,9 @@ AND (
 		now, now, csa.ID,
 	)
 	return err
+}
+
+func (csa CanvasSharedAccess) Response() map[string]any {
+	r := service.ToMapStringAny(csa)
+	return r
 }

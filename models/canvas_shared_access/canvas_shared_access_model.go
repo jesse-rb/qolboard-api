@@ -2,6 +2,7 @@ package canvas_shared_access_model
 
 import (
 	model "qolboard-api/models"
+	"qolboard-api/services/logging"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -11,7 +12,7 @@ func GetAll(tx *sqlx.Tx, limit int, page int) ([]model.CanvasSharedAccess, error
 	offset := max(page-1, 0) * limit
 	csa := make([]model.CanvasSharedAccess, 0)
 	err := tx.Select(
-		tx,
+		&csa,
 		`
 SELECT *
 FROM canvas_shared_accesses
@@ -24,7 +25,11 @@ OFFSET $2
 		offset,
 	)
 	if err != nil {
+		logging.LogError("[model]", "Error getting all canvases shared accesses", err)
 		return nil, err
 	}
+
+	logging.Here()
+	logging.LogDebug("[model]", "csa", csa)
 	return csa, err
 }

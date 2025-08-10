@@ -6,7 +6,6 @@ import (
 	model "qolboard-api/models"
 	user_model "qolboard-api/models/user"
 	error_service "qolboard-api/services/error"
-	generator_service "qolboard-api/services/generator"
 	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
 
@@ -51,7 +50,7 @@ func Get(c *gin.Context) {
 		return
 	}
 
-	resp := generator_service.BuildResponse(*user)
+	resp := response_service.BuildResponse(*user)
 
 	response_service.SetJSON(c, gin.H{
 		"data": resp,

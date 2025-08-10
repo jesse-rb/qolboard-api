@@ -1,28 +1,72 @@
 package response_service
 
 import (
-	"encoding/json"
+	"maps"
+	model "qolboard-api/models"
+	"reflect"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jesse-rb/imissphp-go"
 )
 
-// Thank you gpt
-func _ToMap(data any) map[string]any {
-	// Marshal the struct into JSON
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return map[string]any{}
-	}
+func BuildResponse(node any) any {
+	t := reflect.TypeOf(node)
+	v := reflect.ValueOf(node)
 
-	// Unmarshal the JSON into a map
-	var result map[string]any
-	err = json.Unmarshal(jsonData, &result)
-	if err != nil {
-		return map[string]any{}
-	}
+	if respondable, ok := node.(model.Respondable); ok {
+		// var resp map[string]any
+		resp := respondable.Response()
 
-	return result
+		// Iterate over node properties
+		for i := 0; i < v.NumField(); i++ {
+			// Get child node
+			child := v.Field(i).Interface()
+			jsonTag := t.Field(i).Tag.Get("json")
+
+			_t := reflect.TypeOf(child)
+			_v := reflect.ValueOf(child)
+
+			// If child node is struct, build it's response
+			if _t.Kind() == reflect.Struct {
+				childResp := BuildResponse(child)
+
+				if childResp != nil && jsonTag != "" {
+					resp[jsonTag] = childResp
+				}
+			}
+
+			// If child node is a slice, iterate over it to build its response
+			if _t.Kind() == reflect.Slice {
+				var childResp []any
+				for j := 0; j < _v.Len(); j++ {
+					item := _v.Index(j).Interface()
+					itemResp := BuildResponse(item)
+					if itemResp != nil {
+						childResp = append(childResp, itemResp)
+					}
+				}
+
+				if len(childResp) > 0 {
+					resp[jsonTag] = childResp
+				}
+			}
+		}
+
+		return resp
+	} else if t.Kind() == reflect.Slice {
+		var resp []any
+		for i := 0; i < v.Len(); i++ {
+			item := v.Index(i).Interface()
+			itemResp := BuildResponse(item)
+
+			if itemResp != nil {
+				resp = append(resp, itemResp)
+			}
+		}
+		return resp
+	} else {
+		return nil
+	}
 }
 
 func SetJSON(c *gin.Context, value any) {
@@ -32,9 +76,7 @@ func SetJSON(c *gin.Context, value any) {
 func MergeJSON(c *gin.Context, toMerge any) {
 	response := GetJSON(c)
 
-	for k, v := range imissphp.ToMap(toMerge) {
-		response[k] = v
-	}
+	maps.Copy(response, imissphp.ToMap(toMerge))
 
 	c.Set("response", response)
 }
@@ -60,7 +102,7 @@ func GetCode(c *gin.Context) int {
 }
 
 func Response(c *gin.Context) {
-	var code int = GetCode(c)
+	code := GetCode(c)
 	var response gin.H = GetJSON(c)
 
 	c.JSON(code, response)

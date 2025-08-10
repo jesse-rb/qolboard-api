@@ -56,6 +56,8 @@ github.com/jesse-rb/slogger-go v1.0.2 h1:iLXO624CTyTSrTf0tNWin4wvmWMKu53KTakc0fN
 github.com/jesse-rb/slogger-go v1.0.2/go.mod h1:6/jDnLwF6xRprBvkdMceXsbSOukAdl2JkTZVDf6A0g8=
 github.com/jesse-rb/slogger-go/v2 v2.0.3 h1:4Wzk6+mqlQ9QH1FBXKIAPKCSs6cTp9kAeD2Lt3cQfAg=
 github.com/jesse-rb/slogger-go/v2 v2.0.3/go.mod h1:OrhCcaI9dw+lKZExwLrqvBZ6ZOrkd2M1uGgjCESY/gY=
+github.com/jesse-rb/slogger-go/v2 v2.0.4 h1:+Epjbivnsxq0dJlMSfm9Xhqw4XKOVAoNEfw/QC4ocGY=
+github.com/jesse-rb/slogger-go/v2 v2.0.4/go.mod h1:s0rhRRcwgmYKe9J46iEKo4oShe44UbB4HFQsv6x6rvU=
 github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
 github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
 github.com/jinzhu/now v1.1.4/go.mod h1:d3SSVoowX0Lcu0IBviAWJpolVfI5UJVZZ7cO71lE/z8=

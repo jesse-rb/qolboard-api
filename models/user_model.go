@@ -42,7 +42,7 @@ func init() {
 
 	relations_service.HasMany(
 		"canvas_shared_accesses",
-		CanvasRelations,
+		UserRelations,
 		"SELECT * FROM canvas_shared_accesses WHERE user_uuid = $1 AND deleted_at IS NULL",
 		"SELECT * FROM canvas_shared_accesses WHERE user_uuid IN (?) AND deleted_at IS NULL",
 		func(u User, csa []CanvasSharedAccess) User {

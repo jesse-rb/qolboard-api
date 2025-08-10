@@ -2,6 +2,7 @@ package canvas_model
 
 import (
 	model "qolboard-api/models"
+	"qolboard-api/services/logging"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -93,6 +94,7 @@ AND (
 )
 	`, canvasId)
 	if err != nil {
+		logging.LogError("[model]", "Error getting canvas", err)
 		return nil, err
 	}
 

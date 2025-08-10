@@ -2,17 +2,17 @@ package model
 
 import (
 	"encoding/json"
+	service "qolboard-api/services"
 	relations_service "qolboard-api/services/relations"
 	"time"
 
-	"github.com/jesse-rb/imissphp-go"
 	"github.com/jmoiron/sqlx"
 	"gorm.io/datatypes"
 )
 
 type Canvas struct {
 	Model
-	UserUuid                string                   `json:"user_uuid" db:"user_uuid"`
+	UserUuid                string                   `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:Uuid;type:uuid;not null;index"`
 	CanvasData              datatypes.JSON           `json:"canvas_data" db:"canvas_data"`
 	CanvasSharedAccesses    []CanvasSharedAccess     `json:"canvas_shared_accesses"`
 	CanvasSharedInvitations []CanvasSharedInvitation `json:"canvas_shared_invitations"`
@@ -92,7 +92,6 @@ func (c *Canvas) Delete(tx *sqlx.Tx) error {
 }
 
 func (c Canvas) Response() map[string]any {
-	// r := c.Model.Response()
-	r := imissphp.ToMap(c)
+	r := service.ToMapStringAny(c)
 	return r
 }

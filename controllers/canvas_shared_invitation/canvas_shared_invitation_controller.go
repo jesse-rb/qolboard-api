@@ -9,7 +9,6 @@ import (
 	canvas_shared_invitation_model "qolboard-api/models/canvas_shared_invitation"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
-	generator_service "qolboard-api/services/generator"
 	"qolboard-api/services/logging"
 	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
@@ -62,7 +61,7 @@ func Create(c *gin.Context) {
 
 	tx.Commit()
 
-	resp := generator_service.BuildResponse(*canvasSharedInvitation)
+	resp := response_service.BuildResponse(*canvasSharedInvitation)
 
 	response_service.SetJSON(c, gin.H{
 		"data": resp,
@@ -104,7 +103,7 @@ func Index(c *gin.Context) {
 
 	tx.Commit()
 
-	resp := generator_service.BuildResponse(data)
+	resp := response_service.BuildResponse(data)
 
 	response_service.SetJSON(c, gin.H{
 		"data": resp,
@@ -143,7 +142,7 @@ func Delete(c *gin.Context) {
 
 	response_service.SetJSON(c, gin.H{
 		"message": "successfully deleted shared canvas link",
-		"data":    generator_service.BuildResponse(csi),
+		"data":    response_service.BuildResponse(csi),
 	})
 
 	tx.Commit()

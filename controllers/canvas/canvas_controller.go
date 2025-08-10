@@ -10,7 +10,6 @@ import (
 	canvas_model "qolboard-api/models/canvas"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
-	generator_service "qolboard-api/services/generator"
 	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
 	"strconv"
@@ -61,7 +60,7 @@ func Index(c *gin.Context) {
 		return
 	}
 
-	resp := generator_service.BuildResponse(canvases)
+	resp := response_service.BuildResponse(canvases)
 
 	response_service.SetJSON(c, gin.H{
 		"data": resp,
@@ -99,7 +98,7 @@ func Get(c *gin.Context) {
 
 	canvas, err := canvas_model.Get(tx, id)
 	if err != nil {
-		error_service.InternalError(c, err.Error())
+		error_service.PublicError(c, "Could not find canvas", 404, "id", paramId, "canvas")
 		tx.Rollback()
 		return
 	}
@@ -111,7 +110,7 @@ func Get(c *gin.Context) {
 		return
 	}
 
-	resp := generator_service.BuildResponse(*canvas)
+	resp := response_service.BuildResponse(*canvas)
 
 	response_service.SetJSON(c, map[string]any{
 		"data": resp,
@@ -204,7 +203,7 @@ func Delete(c *gin.Context) {
 
 	response_service.SetJSON(c, gin.H{
 		"message": fmt.Sprintf("Successfully deleted canvas with id %v", canvas.ID),
-		"data":    generator_service.BuildResponse(canvas),
+		"data":    response_service.BuildResponse(canvas),
 	})
 
 	tx.Commit()

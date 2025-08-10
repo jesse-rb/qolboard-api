@@ -29,7 +29,7 @@ func beginDbTransaction(c *gin.Context) (*sqlx.Tx, error) {
 
 	tx, err = db.Beginx()
 	if err != nil {
-		logging.LogError("DB", "Failed to being database transaction", err.Error())
+		logging.LogError("[config]", "Failed to being database transaction", err.Error())
 		return nil, err
 	}
 
@@ -37,7 +37,7 @@ func beginDbTransaction(c *gin.Context) (*sqlx.Tx, error) {
 	_, err = tx.Exec("SELECT set_user_uuid($1)", user_uuid)
 	if err != nil {
 		tx.Rollback()
-		logging.LogError("DB", "Failed to SET databse session user_uuid REQUIRED for RLS", err.Error())
+		logging.LogError("[config]", "Failed to SET databse session user_uuid REQUIRED for RLS", err.Error())
 		return nil, err
 	}
 

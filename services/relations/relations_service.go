@@ -192,8 +192,6 @@ func makeHasManySingleLoader[TModel IHasRelations, TRelated IHasRelations](
 			*model = tModel
 		}
 
-		logging.LogDebug("-----", "here", related)
-
 		toReturnSlice := make([]IHasRelations, len(related))
 		for i, r := range related {
 			toReturnSlice[i] = r
@@ -257,6 +255,10 @@ func makeHasManyBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 	getRelatedPrimaryKey func(TRelated) any,
 ) BatchRelationLoaderFunc {
 	return func(tx *sqlx.Tx, models []IHasRelations) ([]IHasRelations, error) {
+		if len(models) <= 0 {
+			return make([]IHasRelations, 0), nil
+		}
+
 		keys := make([]any, 0, len(models))
 		for i := range models {
 			keys = append(keys, models[i].GetPrimaryKey())
@@ -264,6 +266,7 @@ func makeHasManyBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 
 		queryStr, args, err := sqlx.In(query, keys)
 		if err != nil {
+			logging.LogError("[service]", "Failed forming batch sql IN related IDs clause", err)
 			return nil, err
 		}
 		queryStr = tx.Rebind(queryStr)
@@ -271,6 +274,7 @@ func makeHasManyBatchLoader[TModel IHasRelations, TRelated IHasRelations](
 		related := make([]TRelated, len(models))
 		err = tx.Select(&related, queryStr, args...)
 		if err != nil {
+			logging.LogError("[service]", "Failed getting related items query", err)
 			return nil, err
 		}
 

@@ -8,7 +8,7 @@ import (
 	model "qolboard-api/models"
 	canvas_shared_access_model "qolboard-api/models/canvas_shared_access"
 	error_service "qolboard-api/services/error"
-	generator_service "qolboard-api/services/generator"
+	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
 	"strconv"
 
@@ -46,13 +46,13 @@ func Index(c *gin.Context) {
 		return
 	}
 
-	// err = relations_service.LoadBatch(tx, model.CanvasSharedAccessRelations, csa, params.With)
-	// if err != nil {
-	// 	error_service.InternalError(c, err.Error())
-	// 	return
-	// }
+	err = relations_service.LoadBatch(tx, model.CanvasSharedAccessRelations, csa, params.With)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
 
-	resp := generator_service.BuildResponse(csa)
+	resp := response_service.BuildResponse(csa)
 
 	response_service.SetJSON(c, gin.H{
 		"data": resp,
@@ -86,7 +86,7 @@ func Delete(c *gin.Context) {
 		return
 	}
 
-	resp := generator_service.BuildResponse(csa)
+	resp := response_service.BuildResponse(csa)
 
 	response_service.SetJSON(c, gin.H{
 		"message": fmt.Sprintf("Successfully deleted canvas shared access with id %v", csa.ID),
