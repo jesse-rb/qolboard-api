@@ -12,6 +12,7 @@ import (
 	error_service "qolboard-api/services/error"
 	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
+	websocket_service "qolboard-api/services/websocket"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -209,55 +210,59 @@ func Delete(c *gin.Context) {
 	tx.Commit()
 }
 
-// func Websocket(c *gin.Context) {
-// 	claims := auth_service.GetClaims(c)
-// 	userUuid := claims.Subject
-//
-// 	// Validate canvas id param
-// 	var paramId string = c.Param("id")
-// 	var id uint64 = 0
-// 	if paramId != "" {
-// 		var err error
-// 		id, err = strconv.ParseUint(paramId, 10, 64)
-// 		if err != nil {
-// 			error_service.PublicError(c, "Canvas id must be an integer", http.StatusUnprocessableEntity, "canvas_id", paramId, "canvas")
-// 			return
-// 		}
-// 	}
-//
-// 	db := database_config.GetDatabase()
-//
-// 	// Validate user owns canvas or has access to canvas
-// 	var canvas model.Canvas
-// 	canvas.ID = id
-//
-// 	query := db.Connection
-// 	model.Canvas{}.LeftJoinCanvasSharedAccessOnUser(query, userUuid)
-// 	model.Canvas{}.BelongsToUser(query, userUuid)
-// 	query.Or(model.CanvasSharedAccess{}.BelongsToCanvas(query, &id))
-// 	result := query.First(&canvas)
-//
-// 	if result.Error != nil {
-// 		if result.Error == gorm.ErrRecordNotFound {
-// 			error_service.PublicError(c, "Could not find canvas", http.StatusNotFound, "id", paramId, "canvas")
-// 		} else {
-// 			error_service.InternalError(c, result.Error.Error())
-// 		}
-// 		return
-// 	}
-//
-// 	conn := websocket_service.Connect(c)
-//
-// 	websocket_service.AddConnection(id, userUuid, conn)
-//
-// 	for {
-// 		message := &websocket_service.CanvasMessage{}
-// 		err := conn.ReadJSON(&message)
-// 		if err != nil {
-// 			logging.LogInfo("WebSocket", "Error reading message from websocket connection, closing connection", err)
-// 		}
-//
-// 		response := &websocket_service.CanvasMessage{Event: message.Event, Email: message.Email, Data: message.Data}
-// 		websocket_service.WriteToCanvasConnections(id, conn, response)
-// 	}
-// }
+func Websocket(c *gin.Context) {
+	claims := auth_service.GetClaims(c)
+	userUuid := claims.Subject
+
+	// Parse query params
+	var params getParams = getParams{
+		GetParams: controller.GetParams{
+			With: make([]string, 0),
+		},
+	}
+
+	if err := c.ShouldBindQuery(&params); err != nil {
+		error_service.ValidationError(c, err)
+		return
+	}
+
+	// Validate canvas id param
+	var paramId string = c.Param("id")
+	var id uint64 = 0
+	if paramId != "" {
+		var err error
+		id, err = strconv.ParseUint(paramId, 10, 64)
+		if err != nil {
+			error_service.PublicError(c, "Canvas id must be an integer", http.StatusUnprocessableEntity, "canvas_id", paramId, "canvas")
+			return
+		}
+	}
+
+	tx, err := database_config.DB(c)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
+	// Validate user owns canvas or has access to canvas
+	_, err = canvas_model.Get(tx, id)
+	if err != nil {
+		error_service.PublicError(c, "Could not find canvas", http.StatusNotFound, "id", paramId, "canvas")
+		return
+	}
+
+	// err = relations_service.Load(tx, model.CanvasRelations, canvas, params.With)
+	// if err != nil {
+	// 	error_service.InternalError(c, err.Error())
+	// 	return
+	// }
+
+	conn := websocket_service.Connect(c)
+	client := websocket_service.Join(userUuid, id, conn)
+
+	// Go rotine for reading websocket messages
+	go client.Reader()
+
+	// Go rotine for writing websocket messages
+	client.Writer()
+}

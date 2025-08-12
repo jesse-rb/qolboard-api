@@ -80,7 +80,7 @@ func main() {
 		rUser.GET("/canvas/shared_access", canvas_shared_access_controller.Index)
 		rUser.DELETE("/canvas/shared_access/:canvas_shared_access_id", canvas_shared_access_controller.Delete)
 		//
-		// rUser.GET("/ws/canvas/:id", canvas_controller.Websocket)
+		rUser.GET("/ws/canvas/:id", canvas_controller.Websocket)
 	}
 
 	// Listen and serve router

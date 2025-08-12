@@ -17,13 +17,131 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// If we needed to scale horizontally one day, this will need some thinking and work
-var canvasUserConnMap = make(map[uint64]map[string]*websocket.Conn)
+type RoomsManager struct {
+	roomsMap  map[uint64]map[*Client]bool
+	join      chan *Client
+	leave     chan *Client
+	broadcast chan RoomMessage
+}
 
-type CanvasMessage struct {
-	Event string `json:"event" binding:"required"`
-	Email string `json:"email" binding:"required"`
-	Data  *gin.H `json:"data" binding:"required"`
+type Client struct {
+	userUuid string
+	canvasId uint64
+	conn     *websocket.Conn
+	send     chan RoomMessage
+}
+
+type RoomMessage struct {
+	canvasId uint64
+	Event    string `json:"event" binding:"required"`
+	Email    string `json:"email" binding:"required"`
+	Data     *gin.H `json:"data" binding:"required"`
+}
+
+var rm RoomsManager = NewRoomsManager()
+
+func init() {
+	go rm.Run()
+}
+
+func NewRoomsManager() RoomsManager {
+	return RoomsManager{
+		roomsMap:  make(map[uint64]map[*Client]bool),
+		join:      make(chan *Client),
+		leave:     make(chan *Client),
+		broadcast: make(chan RoomMessage),
+	}
+}
+
+func NewClient(userUuid string, canvasId uint64, conn *websocket.Conn) *Client {
+	client := &Client{
+		userUuid: userUuid,
+		canvasId: canvasId,
+		send:     make(chan RoomMessage, 256), // Allow for some buffer
+		conn:     conn,
+	}
+
+	return client
+}
+
+func (rm *RoomsManager) Run() {
+	// Event loop for our rooms manager, only one of these events should run at a given time
+	for {
+		select {
+		// A client joins a room
+		case client := <-rm.join:
+			if rm.roomsMap[client.canvasId] == nil {
+				rm.roomsMap[client.canvasId] = make(map[*Client]bool)
+			}
+			rm.roomsMap[client.canvasId][client] = true
+
+		// A client leaves a room
+		case client := <-rm.leave:
+			if _, ok := rm.roomsMap[client.canvasId][client]; ok {
+				delete(rm.roomsMap[client.canvasId], client)
+				close(client.send)
+			}
+			// TODO: Delete room if no more clients? Close ws conn?
+
+		case msg := <-rm.broadcast:
+			for c := range rm.roomsMap[msg.canvasId] {
+				select {
+				// Attempt to send message to the cleint (YAY go channels!)
+				case c.send <- msg:
+				// client's send queue is full, better not hold up our entire event loop...
+				default:
+					close(c.send)
+					delete(rm.roomsMap[msg.canvasId], c) // bye :)
+				}
+			}
+		}
+	}
+}
+
+// Allow broadcasting to a room externally
+func Broadcast(msg RoomMessage) {
+	// Broadcast message to all clients in the room
+	rm.broadcast <- msg
+}
+
+func Join(userUuid string, canvasId uint64, conn *websocket.Conn) *Client {
+	client := NewClient(userUuid, canvasId, conn)
+	rm.join <- client
+
+	return client
+}
+
+func (c *Client) Leave() {
+	rm.leave <- c
+	c.conn.Close()
+}
+
+func (c *Client) Reader() {
+	// Defer handling disconnect
+	defer c.Leave()
+
+	for {
+		msg := RoomMessage{}
+		err := c.conn.ReadJSON(&msg)
+		if err != nil {
+			logging.LogError("WebSocket", "Error reading message from websocket connection", err)
+			continue
+		}
+
+		// Fwd msg to other clients in the room
+		msg.canvasId = c.canvasId
+		Broadcast(msg)
+	}
+}
+
+func (c *Client) Writer() {
+	for msg := range c.send {
+		err := c.conn.WriteJSON(msg)
+		if err != nil {
+			logging.LogError("WebSocket", "Error writing message to websocket connection", err)
+			continue
+		}
+	}
 }
 
 // WsConnect : Connect client to web socket
@@ -35,26 +153,4 @@ func Connect(c *gin.Context) *websocket.Conn {
 	}
 
 	return conn
-}
-
-func AddConnection(canvasId uint64, userUuid string, conn *websocket.Conn) {
-	_, ok := canvasUserConnMap[canvasId]
-	if !ok {
-		canvasUserConnMap[canvasId] = make(map[string]*websocket.Conn, 0)
-	}
-
-	canvasUserConnMap[canvasId][userUuid] = conn
-}
-
-func WriteToCanvasConnections(canvasId uint64, except *websocket.Conn, data *CanvasMessage) {
-	if conns, ok := canvasUserConnMap[canvasId]; ok {
-		// Write to each connection
-		for _, c := range conns {
-			if c != except {
-				c.WriteJSON(data)
-			}
-		}
-	} else {
-		logging.LogError("WriteToCanvasConnections", "Attempted to write to canvas connections that is not mapped", canvasId)
-	}
 }
