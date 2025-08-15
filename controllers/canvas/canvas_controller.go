@@ -119,9 +119,6 @@ func Get(c *gin.Context) {
 }
 
 func Save(c *gin.Context) {
-	claims := auth_service.GetClaims(c)
-	userUuid := claims.Subject
-
 	var paramId string = c.Param("canvas_id")
 	var id uint64 = 0
 	var err error = nil
@@ -155,11 +152,10 @@ func Save(c *gin.Context) {
 	canvas := &model.Canvas{}
 	canvas.ID = id
 	canvas.CanvasData = canvasDataJson
-	canvas.UserUuid = userUuid
 
 	err = canvas.Save(tx)
 	if err != nil {
-		error_service.InternalError(c, err.Error())
+		error_service.PublicError(c, "Canvas not found", http.StatusNotFound, "canvas_id", paramId, "canvas")
 		return
 	}
 
@@ -198,7 +194,7 @@ func Delete(c *gin.Context) {
 
 	err = canvas.Delete(tx)
 	if err != nil {
-		error_service.InternalError(c, err.Error())
+		error_service.PublicError(c, "Could not delete canvas", http.StatusNotFound, "canvas_id", paramId, "canvas")
 		return
 	}
 
@@ -251,17 +247,11 @@ func Websocket(c *gin.Context) {
 		return
 	}
 
-	// err = relations_service.Load(tx, model.CanvasRelations, canvas, params.With)
-	// if err != nil {
-	// 	error_service.InternalError(c, err.Error())
-	// 	return
-	// }
-
 	conn := websocket_service.Connect(c)
 	client := websocket_service.Join(userUuid, id, conn)
 
 	// Go rotine for reading websocket messages
-	go client.Reader()
+	go client.Reader(c)
 
 	// Go rotine for writing websocket messages
 	client.Writer()

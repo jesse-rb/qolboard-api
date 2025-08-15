@@ -2,6 +2,7 @@ package model
 
 import (
 	service "qolboard-api/services"
+	"qolboard-api/services/logging"
 	relations_service "qolboard-api/services/relations"
 	"time"
 
@@ -102,11 +103,14 @@ SET deleted_at = $1, updated_at = $2
 WHERE id = $3
 AND (
 	user_uuid = get_user_uuid()
-	OR (SELECT user_uuid FROM canvases WHERE canvas.id = canvas_shared_accesses.canvas_id) = get_user_uuid()
+	OR (SELECT canvases.user_uuid FROM canvases WHERE canvases.id = canvas_shared_accesses.canvas_id) = get_user_uuid()
 ) RETURNING *
 `,
 		now, now, csa.ID,
 	)
+	if err != nil {
+		logging.LogError("[model]", "Error deleting canvas shared access", err)
+	}
 	return err
 }
 

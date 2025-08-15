@@ -2,7 +2,9 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 	service "qolboard-api/services"
+	"qolboard-api/services/logging"
 	relations_service "qolboard-api/services/relations"
 	"time"
 
@@ -71,12 +73,20 @@ func (c *Canvas) Save(tx *sqlx.Tx) error {
 	}
 
 	if c.ID > 0 {
-		err = tx.Get(c, "UPDATE canvases SET canvas_data = $1, updated_at = $2 WHERE user_uuid = get_user_uuid() AND id = $3 AND deleted_at IS NULL RETURNING *", string(canvasDataBytes), now, c.ID)
+		err = tx.Get(c, fmt.Sprintf(`
+UPDATE canvases c
+SET canvas_data = $1, updated_at = $2
+WHERE %s
+AND id = $3
+AND deleted_at IS NULL
+RETURNING *
+		`, SqlHasAccessToCanvas("c")), string(canvasDataBytes), now, c.ID)
 	} else {
 		err = tx.Get(c, "INSERT INTO canvases(canvas_data, created_at, updated_at, user_uuid) VALUES($1, $2, $3, get_user_uuid()) RETURNING *", string(canvasDataBytes), now, now)
 	}
 
 	if err != nil {
+		logging.LogError("[model]", "Error saving canvas", err)
 		return err
 	}
 
@@ -85,8 +95,24 @@ func (c *Canvas) Save(tx *sqlx.Tx) error {
 
 func (c *Canvas) Delete(tx *sqlx.Tx) error {
 	now := time.Now()
+
 	err := tx.Get(c, "UPDATE canvases SET deleted_at = $1 WHERE id = $2 AND user_uuid = get_user_uuid() AND deleted_at IS NULL RETURNING *", now, c.ID)
-	// TODO: Maybe consider soft deleting all dependants here?
+	if err != nil {
+		logging.LogError("[model]", "Error deleting canvas", err)
+		return err
+	}
+
+	_, err = tx.Exec("UPDATE canvas_shared_invitations SET deleted_at = $1 WHERE canvas_id = $2 AND deleted_at IS NULL", now, c.ID)
+	if err != nil {
+		logging.LogError("[model]", "Error deleting related canvas shared invitations", err)
+		return err
+	}
+
+	_, err = tx.Exec("UPDATE canvas_shared_accesses SET deleted_at = $1 WHERE canvas_id = $2 AND deleted_at IS NULL", now, c.ID)
+	if err != nil {
+		logging.LogError("[model]", "Error deleting related canvas shared access", err)
+		return err
+	}
 
 	return err
 }
@@ -94,4 +120,21 @@ func (c *Canvas) Delete(tx *sqlx.Tx) error {
 func (c Canvas) Response() map[string]any {
 	r := service.ToMapStringAny(c)
 	return r
+}
+
+func SqlHasAccessToCanvas(aliasCanvas string) string {
+	sql := fmt.Sprintf(`
+(
+	%s.user_uuid = get_user_uuid()
+	OR EXISTS (
+		SELECT csa.id
+		FROM canvas_shared_accesses csa
+		WHERE csa.user_uuid = get_user_uuid()
+		AND csa.canvas_id = %s.id
+		AND csa.deleted_at IS NULL
+	)
+)
+	`, aliasCanvas, aliasCanvas)
+
+	return sql
 }
