@@ -19,8 +19,8 @@ type CanvasData struct {
 	Name            string         `json:"name" binding:"required"`
 	BackgroundColor string         `json:"backgroundColor" binding:"required"`
 	PieceSettings   *PieceSettings `json:"pieceSettings" binding:"required"`
-	RulerSettings   RulerSettings  `json:"rulerSettings"`
-	PiecesManager   PiecesManager  `json:"piecesManager" binding:"required"`
+	RulerSettings   *RulerSettings `json:"rulerSettings"`
+	PiecesManager   *PiecesManager `json:"piecesManager" binding:"required"`
 }
 
 type PieceSettings struct {

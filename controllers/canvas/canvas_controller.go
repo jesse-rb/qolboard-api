@@ -241,14 +241,18 @@ func Websocket(c *gin.Context) {
 	}
 
 	// Validate user owns canvas or has access to canvas
-	_, err = canvas_model.Get(tx, id)
+	canvas, err := canvas_model.Get(tx, id)
 	if err != nil {
 		error_service.PublicError(c, "Could not find canvas", http.StatusNotFound, "id", paramId, "canvas")
 		return
 	}
 
+	chResume := make(chan *websocket_service.Client, 1)
+
 	conn := websocket_service.Connect(c)
-	client := websocket_service.Join(userUuid, id, conn)
+	websocket_service.Join(userUuid, canvas, conn, chResume)
+
+	client := <-chResume
 
 	// Go rotine for reading websocket messages
 	go client.Reader(c)

@@ -49,3 +49,12 @@ func ToMapStringAny(probablyAStruct any) map[string]any {
 
 	return toReturn
 }
+
+func PrettyJson(v any) string {
+	pretty := ""
+	out, err := json.MarshalIndent(v, "", "\t")
+	if err == nil {
+		pretty = string(out)
+	}
+	return pretty
+}

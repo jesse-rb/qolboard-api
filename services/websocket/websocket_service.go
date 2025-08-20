@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	database_config "qolboard-api/config/database"
+	model "qolboard-api/models"
 	canvas_model "qolboard-api/models/canvas"
 	"qolboard-api/services/logging"
 
@@ -20,26 +21,38 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type joinRoomData struct {
+	userUuid string
+	canvas   *model.Canvas
+	conn     *websocket.Conn
+	chResume chan *Client
+}
+
 type RoomsManager struct {
-	roomsMap  map[uint64]map[*Client]bool
-	join      chan *Client
+	roomsMap  map[uint64]*Room
+	join      chan *joinRoomData
 	leave     chan *Client
 	broadcast chan RoomMessage
 }
 
+type Room struct {
+	Canvas  *model.Canvas
+	Clients map[*Client]bool
+}
+
 type Client struct {
 	userUuid string
-	canvasId uint64
+	room     *Room
 	conn     *websocket.Conn
 	send     chan RoomMessage
 }
 
 type RoomMessage struct {
-	author   *Client
-	canvasId uint64
-	Event    string `json:"event" binding:"required"`
-	Email    string `json:"email" binding:"required"`
-	Data     *gin.H `json:"data" binding:"required"`
+	author *Client
+	room   *Room
+	Event  string `json:"event" binding:"required"`
+	Email  string `json:"email" binding:"required"`
+	Data   *gin.H `json:"data" binding:"required"`
 }
 
 var rm RoomsManager = NewRoomsManager()
@@ -50,17 +63,24 @@ func init() {
 
 func NewRoomsManager() RoomsManager {
 	return RoomsManager{
-		roomsMap:  make(map[uint64]map[*Client]bool),
-		join:      make(chan *Client),
+		roomsMap:  make(map[uint64]*Room),
+		join:      make(chan *joinRoomData),
 		leave:     make(chan *Client),
 		broadcast: make(chan RoomMessage),
 	}
 }
 
-func NewClient(userUuid string, canvasId uint64, conn *websocket.Conn) *Client {
+func NewRoom(canvas *model.Canvas) *Room {
+	return &Room{
+		Canvas:  canvas,
+		Clients: make(map[*Client]bool),
+	}
+}
+
+func NewClient(userUuid string, room *Room, conn *websocket.Conn) *Client {
 	client := &Client{
 		userUuid: userUuid,
-		canvasId: canvasId,
+		room:     room,
 		send:     make(chan RoomMessage, 256), // Allow for some buffer
 		conn:     conn,
 	}
@@ -68,32 +88,55 @@ func NewClient(userUuid string, canvasId uint64, conn *websocket.Conn) *Client {
 	return client
 }
 
+func (r *Room) addClient(client *Client) {
+	r.Clients[client] = true
+}
+
+func (r *Room) removeClient(client *Client) {
+	delete(r.Clients, client)
+}
+
+func (r *Room) hasClients() bool {
+	return len(r.Clients) > 0
+}
+
+func (rm *RoomsManager) getRoom(canvas *model.Canvas) *Room {
+	if room, exists := rm.roomsMap[canvas.ID]; exists {
+		return room
+	}
+	room := NewRoom(canvas)
+	rm.roomsMap[canvas.ID] = room
+
+	return room
+}
+
 func (rm *RoomsManager) Run() {
 	// Event loop for our rooms manager, only one of these events should run at a given time
 	for {
 		select {
 		// A client joins a room
-		case client := <-rm.join:
+		case joinRoomData := <-rm.join:
 			logging.LogDebug("(WS event loop)", "receiving join", nil)
-			if rm.roomsMap[client.canvasId] == nil {
-				rm.roomsMap[client.canvasId] = make(map[*Client]bool)
-			}
-			rm.roomsMap[client.canvasId][client] = true
+			room := rm.getRoom(joinRoomData.canvas)
+			client := NewClient(joinRoomData.userUuid, room, joinRoomData.conn)
+			room.addClient(client)
+			joinRoomData.chResume <- client // Send the client back to the websocket connection controller action
 
 		// A client leaves a room
 		case client := <-rm.leave:
 			logging.LogDebug("(WS event loop)", "receiving leave", nil)
-			delete(rm.roomsMap[client.canvasId], client)
+			room := client.room
+			room.removeClient(client)
 			close(client.send)
 			client.conn.Close()
 
-			if len(rm.roomsMap[client.canvasId]) <= 0 {
+			if !room.hasClients() {
 				// If the room is now empty, do some cleanup by deleting the room
-				delete(rm.roomsMap, client.canvasId)
+				delete(rm.roomsMap, room.Canvas.ID)
 			}
 
 		case msg := <-rm.broadcast:
-			for c := range rm.roomsMap[msg.canvasId] {
+			for c := range msg.room.Clients {
 				if msg.author == c {
 					continue // Don't send the message back to the author
 				}
@@ -119,11 +162,13 @@ func Broadcast(msg RoomMessage) {
 	rm.broadcast <- msg
 }
 
-func Join(userUuid string, canvasId uint64, conn *websocket.Conn) *Client {
-	client := NewClient(userUuid, canvasId, conn)
-	rm.join <- client
-
-	return client
+func Join(userUuid string, canvas *model.Canvas, conn *websocket.Conn, chResume chan *Client) {
+	rm.join <- &joinRoomData{
+		userUuid: userUuid,
+		canvas:   canvas,
+		conn:     conn,
+		chResume: chResume,
+	}
 }
 
 func (c *Client) Leave() {
@@ -133,9 +178,13 @@ func (c *Client) Leave() {
 func (c *Client) Reader(ctx *gin.Context) {
 	// Defer handling disconnect
 	defer c.Leave()
+	logging.LogDebug("WebSocket", "Reader -- Starting reader for client", nil)
+	room := c.room
+	canvas := room.Canvas
 
 	for {
 		msg := RoomMessage{}
+
 		err := c.conn.ReadJSON(&msg)
 		if err != nil {
 			logging.LogError("WebSocket", "Error reading message from websocket connection", err)
@@ -144,28 +193,19 @@ func (c *Client) Reader(ctx *gin.Context) {
 
 		shouldUpdateCanvas := msg.Event == "add-piece" || msg.Event == "update-piece" || msg.Event == "update-canvas-data"
 
+		// TODO: Should this be protected by race condition?
 		if shouldUpdateCanvas {
-			// If needed, save updates to the canvas
-			tx, err := database_config.DB(ctx)
-			defer tx.Commit()
+			canvasData := canvas_model.CanvasData{}
+			err := json.Unmarshal(canvas.CanvasData, &canvasData)
 			if err != nil {
-				tx.Rollback()
-				break
-			}
-			canvas, err := canvas_model.Get(tx, c.canvasId)
-			var canvasData canvas_model.CanvasData
-			err = json.Unmarshal(canvas.CanvasData, &canvasData)
-			if err != nil {
-				logging.LogError("WebSocket", "Error unmarshalling canvas data", err)
-				tx.Rollback()
-				break
+				logging.LogError("WebSocket", "Reader -- unmarshalling canvas data", err)
 			}
 
 			if msg.Event == "add-piece" {
-				bytes, err := json.Marshal(msg.Data)
+				logging.LogInfo("WebSocket", "add-piece", nil)
+				bytes, err := json.Marshal(*msg.Data)
 				if err != nil {
 					logging.LogError("WebSocket", "add-piece -- Could not marhsal piece data", err)
-					tx.Rollback()
 					break
 				}
 
@@ -173,43 +213,37 @@ func (c *Client) Reader(ctx *gin.Context) {
 				err = json.Unmarshal(bytes, &piece)
 				if err != nil {
 					logging.LogError("WebSocket", "add-piece -- Piece data is invalid", err)
-					tx.Rollback()
 					break
 				}
 				canvasData.PiecesManager.Pieces = append(canvasData.PiecesManager.Pieces, &piece)
 
 			} else if msg.Event == "update-piece" {
+				logging.LogInfo("WebSocket", "update-piece", nil)
 				bytes, err := json.Marshal(msg.Data)
 				if err != nil {
 					logging.LogError("WebSocket", "add-piece -- Could not marhsal piece data", err)
-					tx.Rollback()
 					break
 				}
 
 				var piece canvas_model.PieceData
 				err = json.Unmarshal(bytes, &piece)
 				if err != nil {
-					logging.LogError("WebSocket", "add-piece -- Piece data is invalid", err)
-					tx.Rollback()
+					logging.LogError("WebSocket", "update-piece -- Piece data is invalid", err)
 					break
 				}
 
-				if index, ok := (*msg.Data)["index"].(int); ok {
-					canvasData.PiecesManager.Pieces[index] = &piece
+				if indexFloat, ok := (*msg.Data)["index"].(float64); ok {
+					canvasData.PiecesManager.Pieces[int(indexFloat)] = &piece
 				} else {
-					logging.LogError("WebSocket", "update-piece -- Could not find piece by index", map[string]any{
-						"msg":      msg,
-						"msg.Data": (*msg.Data),
-					})
-					tx.Rollback()
+					logging.LogError("WebSocket", "msg", (*msg.Data))
 					break
 				}
 
 			} else if msg.Event == "update-canvas-data" {
+				logging.LogInfo("WebSocket", "update-canvas-data", nil)
 				bytes, err := json.Marshal((*msg.Data)["canvas_data"])
 				if err != nil {
 					logging.LogError("WebSocket", "add-piece -- Could not marhsal piece data", err)
-					tx.Rollback()
 					break
 				}
 
@@ -217,32 +251,38 @@ func (c *Client) Reader(ctx *gin.Context) {
 				err = json.Unmarshal(bytes, &incomingCanvasData)
 				if err != nil {
 					logging.LogError("WebSocket", "add-piece -- Piece data is invalid", err)
-					tx.Rollback()
 					break
 				}
 
 				canvasData = incomingCanvasData
 			}
 
-			canvasDataBytes, err := json.Marshal(canvasData) // TODO: make Canvas.CanvasData the actual CanvasData type
+			canvasDataBytes, err := json.Marshal(canvasData) // TODO: make Canvas.CanvasData the actual CanvasData type?
 			if err != nil {
 				// TODO: Error messages of this and above
 				logging.LogError("WebSocket", "Error marshalling canvas data", err)
-				tx.Rollback()
 				break
 			}
 			canvas.CanvasData = canvasDataBytes
-			logging.LogDebug("WebSocket", "Saving canvas data", nil)
+
+			// If needed, save updates to the canvas
+			tx, err := database_config.DB(ctx)
+			defer tx.Commit()
+			if err != nil {
+				tx.Rollback()
+				break
+			}
 			err = canvas.Save(tx)
 			if err != nil {
 				logging.LogError("WebSocket", "Error saving canvas data after receiving message", err)
 				tx.Rollback()
 				break
 			}
+			tx.Commit() // Commit the transaction
 		}
 
 		// Fwd msg to other clients in the room
-		msg.canvasId = c.canvasId
+		msg.room = room
 		msg.author = c
 		Broadcast(msg)
 	}
