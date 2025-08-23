@@ -1,5 +1,6 @@
 module qolboard-api
 
+// +heroku install github.com/pressly/goose/v3/cmd/goose@latest
 go 1.23.3
 
 require (
