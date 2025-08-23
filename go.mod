@@ -1,6 +1,7 @@
 module qolboard-api
 
-// +heroku install ./cmd/qolboard-api github.com/pressly/goose/v3/cmd/goose@latest
+// +heroku install ./cmd/qolboard-api
+// +heroku install github.com/pressly/goose/v3/cmd/goose@latest
 go 1.23.3
 
 require (
