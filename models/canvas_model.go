@@ -1,92 +1,140 @@
 package model
 
 import (
-	"gorm.io/datatypes"
-	"gorm.io/gorm"
-)
+	"encoding/json"
+	"fmt"
+	service "qolboard-api/services"
+	"qolboard-api/services/logging"
+	relations_service "qolboard-api/services/relations"
+	"time"
 
-const (
-	CanvasModeDraw   = "draw"
-	CanvasModeGrab   = "grab"
-	CanvasModePan    = "pan"
-	CanvasModeRemove = "remove"
+	"github.com/jmoiron/sqlx"
+	"gorm.io/datatypes"
 )
 
 type Canvas struct {
 	Model
-	UserUuid               string                    `json:"user_uuid" gorm:"foreignKey:UserUuid;references:Uuid;type:uuid;not null;index"`
-	CanvasData             datatypes.JSON            `json:"canvasData"`
-	CanvasSharedAccess     []*CanvasSharedAccess     `json:"canvas_shared_accesses"`
-	CanvasSharedInvitation []*CanvasSharedInvitation `json:"canvas_shared_invitations"`
-	User                   *User                     `json:"user"`
+	UserUuid                string                   `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:Uuid;type:uuid;not null;index"`
+	CanvasData              datatypes.JSON           `json:"canvas_data" db:"canvas_data"`
+	CanvasSharedAccesses    []CanvasSharedAccess     `json:"canvas_shared_accesses"`
+	CanvasSharedInvitations []CanvasSharedInvitation `json:"canvas_shared_invitations"`
+	User                    *User                    `json:"user"`
 }
 
-type SerializedCanvas struct{} // TODO...
+var CanvasRelations relations_service.RelationRegistry = relations_service.NewRelationRegistry()
 
-type CanvasData struct {
-	Name            string         `json:"name" binding:"required"`
-	BackgroundColor string         `json:"backgroundColor" binding:"required"`
-	PieceSettings   *PieceSettings `json:"pieceSettings" binding:"required"`
-	RulerSettings   RulerSettings  `json:"rulerSettings"`
-	PiecesManager   PiecesManager  `json:"piecesManager" binding:"required"`
+func (c Canvas) GetRelations() relations_service.RelationRegistry {
+	return CanvasRelations
 }
 
-type PieceSettings struct {
-	Size   int    `json:"size" binding:"required"`
-	Coloer string `json:"color" binding:"required"`
+func (c Canvas) GetPrimaryKey() any {
+	return c.ID
 }
 
-type RulerSettings struct {
-	ShowUnits bool `json:"showUnits"`
-	ShowLines bool `json:"showLines"`
+func init() {
+	// Belongs to User
+	relations_service.HasOne(
+		"user",
+		CanvasRelations,
+		"SELECT * FROM view_users WHERE id = $1",
+		"SELECT * FROM view_users WHERE id IN (?)",
+		func(c Canvas, u User) Canvas { c.User = &u; return c },
+		func(c Canvas) any { return c.UserUuid },
+		func(u User) any { return u.Uuid },
+	)
+
+	// Has many CanvasSharedInvitations
+	relations_service.HasMany(
+		"canvas_shared_invitations",
+		CanvasRelations,
+		"SELECT * FROM canvas_shared_invitations WHERE canvas_id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvas_shared_invitations WHERE canvas_id IN (?) AND deleted_at IS NULL",
+		func(c Canvas, csi []CanvasSharedInvitation) Canvas { c.CanvasSharedInvitations = csi; return c },
+		func(c Canvas) any { return c.ID },
+		func(csi CanvasSharedInvitation) any { return csi.CanvasId },
+	)
+
+	relations_service.HasMany(
+		"canvas_shared_accesses",
+		CanvasRelations,
+		"SELECT * FROM canvas_shared_accesses WHERE canvas_id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvas_shared_accesses WHERE canvas_id IN (?) AND deleted_at IS NULL",
+		func(c Canvas, csa []CanvasSharedAccess) Canvas { c.CanvasSharedAccesses = csa; return c },
+		func(c Canvas) any { return c.ID },
+		func(csa CanvasSharedAccess) any { return csa.CanvasId },
+	)
 }
 
-type PiecesManager struct {
-	Pieces     []*PieceData `json:"pieces"`
-	LeftMost   *float64     `json:"leftMost" binding:"required"`
-	RightMost  *float64     `json:"rightMost" binding:"required"`
-	TopMost    *float64     `json:"topMost" binding:"required"`
-	BottomMost *float64     `json:"bottomMost" binding:"required"`
-}
-
-type PieceData struct {
-	Settings *PieceSettings `json:"settings" binding:"required"`
-	Path     string         `json:"path" binding:"required"`
-	Move     DOMMatrixs     `json:"move" binding:"required"`
-	// Pan        DOMMatrixs     `json:"pan" binding:"required"`
-	LeftMost   *float64 `json:"leftMost" binding:"required"`
-	RightMost  *float64 `json:"rightMost" binding:"required"`
-	TopMost    *float64 `json:"topMost" binding:"required"`
-	BottomMost *float64 `json:"bottomMost" binding:"required"`
-}
-
-type DOMMatrixs struct {
-	A   float64 `json:"a" binding:"required"`
-	B   float64 `json:"b" binding:"required"`
-	C   float64 `json:"c" binding:"required"`
-	D   float64 `json:"d" binding:"required"`
-	E   float64 `json:"e" binding:"required"`
-	F   float64 `json:"f" binding:"required"`
-	M11 float64 `json:"m11" binding:"required"`
-	M12 float64 `json:"m12" binding:"required"`
-	M13 float64 `json:"m13" binding:"required"`
-	M14 float64 `json:"m14" binding:"required"`
-	M21 float64 `json:"m21" binding:"required"`
-	M22 float64 `json:"m22" binding:"required"`
-	M23 float64 `json:"m23" binding:"required"`
-	M24 float64 `json:"m24" binding:"required"`
-	M31 float64 `json:"m31" binding:"required"`
-	M32 float64 `json:"m32" binding:"required"`
-	M33 float64 `json:"m33" binding:"required"`
-	M34 float64 `json:"m34" binding:"required"`
-	M41 float64 `json:"m41" binding:"required"`
-	M42 float64 `json:"m42" binding:"required"`
-	M43 float64 `json:"m43" binding:"required"`
-	M44 float64 `json:"m44" binding:"required"`
-}
-
-func CanvasBelongsToUser(userUuid string) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("canvas.user_uuid", userUuid)
+func (c *Canvas) Save(tx *sqlx.Tx) error {
+	now := time.Now()
+	canvasDataBytes, err := json.Marshal(c.CanvasData)
+	if err != nil {
+		return err
 	}
+
+	if c.ID > 0 {
+		err = tx.Get(c, fmt.Sprintf(`
+UPDATE canvases c
+SET canvas_data = $1, updated_at = $2
+WHERE %s
+AND id = $3
+AND deleted_at IS NULL
+RETURNING *
+		`, SqlHasAccessToCanvas("c")), string(canvasDataBytes), now, c.ID)
+	} else {
+		err = tx.Get(c, "INSERT INTO canvases(canvas_data, created_at, updated_at, user_uuid) VALUES($1, $2, $3, get_user_uuid()) RETURNING *", string(canvasDataBytes), now, now)
+	}
+
+	if err != nil {
+		logging.LogError("[model]", "Error saving canvas", err)
+		return err
+	}
+
+	return nil
+}
+
+func (c *Canvas) Delete(tx *sqlx.Tx) error {
+	now := time.Now()
+
+	err := tx.Get(c, "UPDATE canvases SET deleted_at = $1 WHERE id = $2 AND user_uuid = get_user_uuid() AND deleted_at IS NULL RETURNING *", now, c.ID)
+	if err != nil {
+		logging.LogError("[model]", "Error deleting canvas", err)
+		return err
+	}
+
+	_, err = tx.Exec("UPDATE canvas_shared_invitations SET deleted_at = $1 WHERE canvas_id = $2 AND deleted_at IS NULL", now, c.ID)
+	if err != nil {
+		logging.LogError("[model]", "Error deleting related canvas shared invitations", err)
+		return err
+	}
+
+	_, err = tx.Exec("UPDATE canvas_shared_accesses SET deleted_at = $1 WHERE canvas_id = $2 AND deleted_at IS NULL", now, c.ID)
+	if err != nil {
+		logging.LogError("[model]", "Error deleting related canvas shared access", err)
+		return err
+	}
+
+	return err
+}
+
+func (c Canvas) Response() map[string]any {
+	r := service.ToMapStringAny(c)
+	return r
+}
+
+func SqlHasAccessToCanvas(aliasCanvas string) string {
+	sql := fmt.Sprintf(`
+(
+	%s.user_uuid = get_user_uuid()
+	OR EXISTS (
+		SELECT csa.id
+		FROM canvas_shared_accesses csa
+		WHERE csa.user_uuid = get_user_uuid()
+		AND csa.canvas_id = %s.id
+		AND csa.deleted_at IS NULL
+	)
+)
+	`, aliasCanvas, aliasCanvas)
+
+	return sql
 }

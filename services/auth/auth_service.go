@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"qolboard-api/config"
 	"qolboard-api/services/logging"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,7 @@ import (
 var (
 	domain string = os.Getenv("APP_DOMAIN")
 	secure bool   = true
-	isDev  bool   = os.Getenv("GIN_MODE") == "dev"
+	isDev  bool   = config.IsDev()
 )
 
 type Claims struct {
@@ -21,13 +22,26 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+// Gets the authenticated user's claims from the JWT
+// panics if unsuccessful
 func GetClaims(c *gin.Context) *Claims {
-	claims, exists := c.Get("claims")
+	claimsAny, exists := c.Get("claims")
 	if !exists {
 		panic("No claims set")
 	}
 
-	return claims.(*Claims)
+	if claims, ok := claimsAny.(*Claims); ok {
+		return claims
+	} else {
+		panic("Unexpected claims structure")
+	}
+}
+
+// Gets the authenticated user's uuid based on the JWT claims
+// panics if unsuccessful
+func Auth(c *gin.Context) string {
+	claims := GetClaims(c)
+	return claims.Subject
 }
 
 func SetAuthCookie(c *gin.Context, token string, expiresIn int) {
@@ -63,7 +77,7 @@ func ParseJWT(token string) (*Claims, error) {
 
 	// Check if the token is valid
 	if err != nil {
-		return nil, fmt.Errorf("error validating tokenL %v", err)
+		return nil, fmt.Errorf("error validating token: %v", err)
 	} else if claims, ok := t.Claims.(*Claims); ok {
 		return claims, nil
 	}

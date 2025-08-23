@@ -1,30 +1,32 @@
 package canvas_shared_invitation_controller
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	database_config "qolboard-api/config/database"
 	model "qolboard-api/models"
+	canvas_model "qolboard-api/models/canvas"
+	canvas_shared_invitation_model "qolboard-api/models/canvas_shared_invitation"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
+	"qolboard-api/services/logging"
+	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
+	websocket_service "qolboard-api/services/websocket"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type IndexQuery struct {
-	CanvasId uint64 `form:"canvas_id"`
-	Page     uint64 `form:"page"`
-	Limit    uint64 `form:"limit"`
+	CanvasId uint64   `form:"canvas_id"`
+	Page     uint64   `form:"page"`
+	Limit    uint64   `form:"limit"`
+	With     []string `form:"with[]"`
 }
 
 func Create(c *gin.Context) {
-	db := database_config.GetDatabase()
-
 	var claims auth_service.Claims = *auth_service.GetClaims(c)
 
 	var paramCanvasId string = c.Param("canvas_id")
@@ -38,97 +40,79 @@ func Create(c *gin.Context) {
 		return
 	}
 
-	var canvas model.Canvas
-	result := db.Connection.First(&canvas, canvasId)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			error_service.PublicError(c, "Could not find canvas", http.StatusNotFound, "id", paramCanvasId, "canvas")
-			return
-		}
-		error_service.InternalError(c, result.Error.Error())
-		return
-	}
-
-	if claims.Subject != canvas.UserUuid {
-		error_service.PublicError(c, "Only the canvas owner can perform this action", http.StatusUnauthorized, "id", paramCanvasId, "canvas")
-		return
-	}
-
 	var canvasSharedInvitation *model.CanvasSharedInvitation
 
-	canvasSharedInvitation, err = model.NewCanvasSharedInvitation(claims.Subject, canvasId)
+	canvasSharedInvitation, err = canvas_shared_invitation_model.NewCanvasSharedInvitation(claims.Subject, canvasId)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}
 
-	result = db.Connection.
-		Scopes(model.CanvasSharedInvitationBelongsToCanvas(canvasId)).
-		Save(canvasSharedInvitation)
-
-	if result.Error != nil {
-		error_service.InternalError(c, result.Error.Error())
+	tx, err := database_config.DB(c)
+	defer tx.Rollback()
+	if err != nil {
+		error_service.InternalError(c, err.Error())
 		return
 	}
 
+	err = canvasSharedInvitation.Save(tx)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
+	tx.Commit()
+
+	resp := response_service.BuildResponse(*canvasSharedInvitation)
+
 	response_service.SetJSON(c, gin.H{
-		"data": canvasSharedInvitation.Response(),
+		"data": resp,
 	})
 }
 
 func Index(c *gin.Context) {
 	// Get user claims
-	claims := auth_service.GetClaims(c)
+	// claims := auth_service.GetClaims(c)
 
 	// Get query params
-	var queryValues IndexQuery
-	if err := c.ShouldBindQuery(&queryValues); err != nil {
+	var params IndexQuery
+	if err := c.ShouldBindQuery(&params); err != nil {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
 
 	// Query with filters
-	db := database_config.GetDatabase()
-
-	query := db.Connection.Model(&model.CanvasSharedInvitation{})
-
-	// User UUID
-	query.Scopes(model.CanvasSharedInvitationBelongsToUser(claims.Subject))
-
-	// Canvas ID
-	if queryValues.CanvasId > 0 {
-		query.Scopes(model.CanvasSharedInvitationBelongsToCanvas(queryValues.CanvasId))
+	tx, err := database_config.DB(c)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
 	}
 
-	// Pagination
-	page := 0
-	limit := 100
-	if queryValues.Page > 0 {
-		page = int(queryValues.Page)
-	}
-	if queryValues.Limit > 0 {
-		limit = min(limit, int(queryValues.Limit))
+	data, err := canvas_shared_invitation_model.GetAllForCanvas(tx, params.CanvasId)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
 	}
 
-	query.Limit(limit)
-	query.Offset(limit * page)
-
-	var data []*model.CanvasSharedInvitation
-	query.Find(&data)
-
-	// Format response
-	for i, item := range data {
-		data[i] = item.Response()
+	err = relations_service.LoadBatch(tx, model.CanvasSharedInvitationRelations, data, params.With)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
 	}
+
+	tx.Commit()
+
+	resp := response_service.BuildResponse(data)
 
 	response_service.SetJSON(c, gin.H{
-		"data": data,
+		"data": resp,
 	})
 }
 
 func Delete(c *gin.Context) {
-	claims := auth_service.GetClaims(c)
-
 	// Parse id
 	paramId := c.Param("canvas_shared_invitation_id")
 	id, err := strconv.ParseUint(paramId, 10, 64)
@@ -137,27 +121,33 @@ func Delete(c *gin.Context) {
 		return
 	}
 
-	db := database_config.GetDatabase()
+	tx, err := database_config.DB(c)
+	defer tx.Rollback()
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
 
-	// Find record
-	var sharedInvitation model.CanvasSharedInvitation
-	db.Connection.
-		Scopes(model.CanvasSharedInvitationBelongsToUser(claims.Subject)).
-		First(&sharedInvitation, id)
+	csi := model.CanvasSharedInvitation{}
+	csi.ID = id
 
-	// Delete record
-	result := db.Connection.
-		Scopes(model.CanvasSharedInvitationBelongsToUser(claims.Subject)).
-		Delete(&sharedInvitation, id)
-	if result.Error != nil {
-		error_service.InternalError(c, result.Error.Error())
+	debug := model.CanvasSharedInvitation{}
+	debug.ID = id
+	tx.Get(&debug, "SELECT * FROM canvas_shared_invitations WHERE id = $1 AND user_uuid = get_user_uuid() AND deleted_at IS NULL", id)
+	logging.LogDebug("canvas_shared_invitation_controller", "Finding the csi", debug)
+
+	err = csi.Delete(tx)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
 		return
 	}
 
 	response_service.SetJSON(c, gin.H{
-		"message": fmt.Sprintf("Successfully deleted shared invitiation with id %v", sharedInvitation.ID),
-		"data":    sharedInvitation,
+		"message": "successfully deleted shared canvas link",
+		"data":    response_service.BuildResponse(csi),
 	})
+
+	tx.Commit()
 }
 
 func AcceptInvite(c *gin.Context) {
@@ -174,34 +164,45 @@ func AcceptInvite(c *gin.Context) {
 	}
 
 	// Find shared invitation by code and canvas id
-	db := database_config.GetDatabase()
+	tx, err := database_config.DB(c)
+	defer tx.Rollback()
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
 
-	var sharedInvitation model.CanvasSharedInvitation
-	result := db.Connection.Scopes(model.CanvasSharedInvitationBelongsToCanvas(canvasId)).
-		Where(&model.CanvasSharedInvitation{Code: paramCode}).
-		First(&sharedInvitation)
-
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			link := c.Request.URL.String()
-			error_service.PublicError(c, "Could not find this invite link", http.StatusNotFound, "link", link, "canvas_shared_invitation")
-		} else {
-			error_service.InternalError(c, result.Error.Error())
-		}
+	csi, err := canvas_shared_invitation_model.GetByCode(tx, canvasId, paramCode)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
 		return
 	}
 
 	// Check to ensure we do not create a "shared access" for the canvas owner
-	if sharedInvitation.UserUuid != claims.Subject {
+	if csi.UserUuid != claims.Subject {
 		// Create shared access
-		var sharedAccess model.CanvasSharedAccess = model.CanvasSharedAccess{
+		var csa model.CanvasSharedAccess = model.CanvasSharedAccess{
 			UserUuid:                 claims.Subject,
 			CanvasId:                 canvasId,
-			CanvasSharedInvitationId: sharedInvitation.ID,
+			CanvasSharedInvitationId: csi.ID,
 		}
 
-		db.Connection.Save(&sharedAccess)
+		csa.Insert(tx)
 	}
+
+	canvas, err := canvas_model.Get(tx, csi.CanvasId)
+	if err != nil {
+		error_service.PublicError(c, "Could not find canvas", 404, "id", string(csi.ID), "canvas")
+	}
+
+	err = relations_service.Load(tx, model.CanvasRelations, canvas, []string{"user", "canvas_shared_invitations", "canvas_shared_accesses.user"})
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
+	tx.Commit()
+
+	websocket_service.BroadcastCanvas(canvas)
 
 	// Redirect to canvas
 	appHost := os.Getenv("APP_HOST")

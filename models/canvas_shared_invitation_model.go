@@ -3,51 +3,108 @@ package model
 import (
 	"fmt"
 	"os"
-	service "qolboard-api/services"
+	relations_service "qolboard-api/services/relations"
+	"time"
 
-	"gorm.io/gorm"
+	"github.com/jesse-rb/imissphp-go"
+	"github.com/jmoiron/sqlx"
 )
 
 type CanvasSharedInvitation struct {
 	Model
-	Code               string              `json:"-" gorm:"not null;index:,unique"`
-	CanvasId           uint64              `json:"canvas_id" gorm:"not null"`
-	UserUuid           string              `json:"user_uuid" gorm:"foreignKey:UserUuid;references:id;type:uuid;not null;index"`
-	Canvas             *Canvas             `json:"canvas"`
-	CanvasSharedAccess *CanvasSharedAccess `json:"canvas_shared_access"`
+	Code                 string               `json:"-" db:"code" gorm:"not null;index:,unique"`
+	CanvasId             uint64               `json:"canvas_id" db:"canvas_id" gorm:"not null"`
+	UserUuid             string               `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:id;type:uuid;not null;index"`
+	Canvas               *Canvas              `json:"canvas"`
+	User                 *User                `json:"user"`
+	CanvasSharedAccesses []CanvasSharedAccess `json:"canvas_shared_access"`
 
 	InviteLink string `json:"link" gorm:"-"` // Calculated on the fly
 }
 
-func CanvasSharedInvitationBelongsToUser(userUuid string) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("user_uuid", userUuid)
-	}
+var CanvasSharedInvitationRelations relations_service.RelationRegistry = relations_service.NewRelationRegistry()
+
+func init() {
+	relations_service.BelongsTo(
+		"canvas",
+		CanvasSharedInvitationRelations,
+		"SELECT * FROM canvases WHERE id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvases WHERE id IN (?) AND deleted_at IS NULL",
+		func(csi CanvasSharedInvitation, c Canvas) CanvasSharedInvitation {
+			csi.Canvas = &c
+			return csi
+		},
+		func(csi CanvasSharedInvitation) any { return csi.CanvasId },
+		func(c Canvas) any { return c.ID },
+	)
+
+	relations_service.BelongsTo(
+		"user",
+		CanvasSharedInvitationRelations,
+		"SELECT * FROM view_users WHERE id = $1",
+		"SELECT * FROM view_users WHERE id IN (?)",
+		func(csi CanvasSharedInvitation, u User) CanvasSharedInvitation {
+			csi.User = &u
+			return csi
+		},
+		func(csi CanvasSharedInvitation) any { return csi.UserUuid },
+		func(u User) any { return u.Uuid },
+	)
+
+	relations_service.HasMany(
+		"canvas_shared_accesses",
+		CanvasSharedInvitationRelations,
+		"SELECT * FROM canvas_shared_accesses WHERE canvas_shared_invitation_id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvas_shared_accesses WHERE canvas_shared_invitation_id IN (?) AND delted_at IS NULL",
+		func(csi CanvasSharedInvitation, csa []CanvasSharedAccess) CanvasSharedInvitation {
+			csi.CanvasSharedAccesses = csa
+			return csi
+		},
+		func(csi CanvasSharedInvitation) any {
+			return csi.ID
+		},
+		func(csa CanvasSharedAccess) any {
+			return csa.CanvasSharedInvitationId
+		},
+	)
 }
 
-func CanvasSharedInvitationBelongsToCanvas(canvasId uint64) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("canvas_id", canvasId)
-	}
+func (csi CanvasSharedInvitation) GetRelations() relations_service.RelationRegistry {
+	return CanvasSharedInvitationRelations
 }
 
-func NewCanvasSharedInvitation(userUuid string, canvasId uint64) (*CanvasSharedInvitation, error) {
-	code, err := service.GenerateCode(256)
+func (csi CanvasSharedInvitation) GetPrimaryKey() any {
+	return csi.ID
+}
+
+func (csi *CanvasSharedInvitation) Save(tx *sqlx.Tx) error {
+	now := time.Now()
+	var err error
+
+	if csi.ID > 0 {
+		err = tx.Get(csi, "UPDATE canvas_shared_invitations SET updated_at = $1 WHERE user_uuid = $2 AND id = $3 AND deleted_at IS NULL RETURNING *", now, csi.UserUuid, csi.ID)
+	} else {
+		err = tx.Get(csi, "INSERT INTO canvas_shared_invitations(code, user_uuid, canvas_id, created_at, updated_at) VALUES($1, $2, $3, $4, $5) RETURNING *", csi.Code, csi.UserUuid, csi.CanvasId, now, now)
+	}
+
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &CanvasSharedInvitation{
-		UserUuid: userUuid,
-		CanvasId: canvasId,
-		Code:     code,
-	}, nil
+	return nil
 }
 
-func (sharedInvitation *CanvasSharedInvitation) Response() *CanvasSharedInvitation {
-	sharedInvitation.InviteLink = sharedInvitation.buildInviteLink()
-	sharedInvitation.Code = ""
-	return sharedInvitation
+func (csi *CanvasSharedInvitation) Delete(tx *sqlx.Tx) error {
+	now := time.Now()
+	err := tx.Get(csi, "UPDATE canvas_shared_invitations SET deleted_at = $1 WHERE id = $2 AND user_uuid = get_user_uuid() AND deleted_at IS NULL RETURNING *", now, csi.ID)
+
+	return err
+}
+
+func (csi CanvasSharedInvitation) Response() map[string]any {
+	csi.InviteLink = csi.buildInviteLink()
+	r := imissphp.ToMap(csi)
+	return r
 }
 
 func (sharedInvitation *CanvasSharedInvitation) buildInviteLink() string {

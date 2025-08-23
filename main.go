@@ -76,10 +76,10 @@ func main() {
 		rUser.POST("/canvas/:canvas_id/shared_invitation", canvas_shared_invitation_controller.Create)
 		rUser.GET("/canvas/shared_invitation", canvas_shared_invitation_controller.Index)
 		rUser.DELETE("/canvas/shared_invitation/:canvas_shared_invitation_id", canvas_shared_invitation_controller.Delete)
-
+		//
 		rUser.GET("/canvas/shared_access", canvas_shared_access_controller.Index)
 		rUser.DELETE("/canvas/shared_access/:canvas_shared_access_id", canvas_shared_access_controller.Delete)
-
+		//
 		rUser.GET("/ws/canvas/:id", canvas_controller.Websocket)
 	}
 
