@@ -159,6 +159,12 @@ func Save(c *gin.Context) {
 		return
 	}
 
+	err = relations_service.Load(tx, canvas.GetRelations(), canvas, []string{"user", "canvas_shared_invitations", "canvas_shared_accesses"})
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
 	response_service.SetJSON(c, gin.H{
 		"msg":    fmt.Sprintf("Successfully saved canvas with id: %v", canvas.ID),
 		"canvas": canvas,

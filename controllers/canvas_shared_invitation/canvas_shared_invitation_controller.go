@@ -6,12 +6,14 @@ import (
 	"os"
 	database_config "qolboard-api/config/database"
 	model "qolboard-api/models"
+	canvas_model "qolboard-api/models/canvas"
 	canvas_shared_invitation_model "qolboard-api/models/canvas_shared_invitation"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	"qolboard-api/services/logging"
 	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
+	websocket_service "qolboard-api/services/websocket"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -187,7 +189,20 @@ func AcceptInvite(c *gin.Context) {
 		csa.Insert(tx)
 	}
 
+	canvas, err := canvas_model.Get(tx, csi.CanvasId)
+	if err != nil {
+		error_service.PublicError(c, "Could not find canvas", 404, "id", string(csi.ID), "canvas")
+	}
+
+	err = relations_service.Load(tx, model.CanvasRelations, canvas, []string{"user", "canvas_shared_invitations", "canvas_shared_accesses.user"})
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
 	tx.Commit()
+
+	websocket_service.BroadcastCanvas(canvas)
 
 	// Redirect to canvas
 	appHost := os.Getenv("APP_HOST")

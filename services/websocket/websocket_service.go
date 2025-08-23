@@ -6,10 +6,14 @@ import (
 	database_config "qolboard-api/config/database"
 	model "qolboard-api/models"
 	canvas_model "qolboard-api/models/canvas"
+	service "qolboard-api/services"
 	"qolboard-api/services/logging"
+	response_service "qolboard-api/services/response"
+	"slices"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/jesse-rb/imissphp-go"
 )
 
 // Websocket upgrader
@@ -50,9 +54,9 @@ type Client struct {
 type RoomMessage struct {
 	author *Client
 	room   *Room
-	Event  string `json:"event" binding:"required"`
-	Email  string `json:"email" binding:"required"`
-	Data   *gin.H `json:"data" binding:"required"`
+	Event  string         `json:"event" binding:"required"`
+	Email  string         `json:"email" binding:"required"`
+	Data   map[string]any `json:"data" binding:"required"`
 }
 
 var rm RoomsManager = NewRoomsManager()
@@ -86,6 +90,22 @@ func NewClient(userUuid string, room *Room, conn *websocket.Conn) *Client {
 	}
 
 	return client
+}
+
+func BroadcastCanvas(canvas *model.Canvas) {
+	// data := gin.H(service.ToMapStringAny(canvas))
+	data := response_service.BuildResponse(*canvas)
+	if v, ok := data.(map[string]any); ok {
+		msg := RoomMessage{
+			author: nil,
+			room:   rm.getRoom(canvas),
+			Event:  "get",
+			Email:  "",
+			Data:   v,
+		}
+
+		Broadcast(msg)
+	}
 }
 
 func (r *Room) addClient(client *Client) {
@@ -183,15 +203,27 @@ func (c *Client) Reader(ctx *gin.Context) {
 	canvas := room.Canvas
 
 	for {
-		msg := RoomMessage{}
-
-		err := c.conn.ReadJSON(&msg)
+		msgIncoming := RoomMessage{}
+		err := c.conn.ReadJSON(&msgIncoming)
 		if err != nil {
 			logging.LogError("WebSocket", "Error reading message from websocket connection", err)
 			break
 		}
 
-		shouldUpdateCanvas := msg.Event == "add-piece" || msg.Event == "update-piece" || msg.Event == "update-canvas-data"
+		msgToBroadcast := RoomMessage{
+			author: c,
+			room:   room,
+			Email:  msgIncoming.Email,
+			Event:  msgIncoming.Event,
+			Data:   msgIncoming.Data,
+		}
+
+		shouldUpdateCanvas := imissphp.InArray(msgIncoming.Event, []string{
+			"add-piece",
+			"update-piece",
+			"remove-piece",
+			"update-canvas-data",
+		})
 
 		// TODO: Should this be protected by race condition?
 		if shouldUpdateCanvas {
@@ -201,9 +233,9 @@ func (c *Client) Reader(ctx *gin.Context) {
 				logging.LogError("WebSocket", "Reader -- unmarshalling canvas data", err)
 			}
 
-			if msg.Event == "add-piece" {
+			if msgIncoming.Event == "add-piece" {
 				logging.LogInfo("WebSocket", "add-piece", nil)
-				bytes, err := json.Marshal(*msg.Data)
+				bytes, err := json.Marshal(msgIncoming.Data)
 				if err != nil {
 					logging.LogError("WebSocket", "add-piece -- Could not marhsal piece data", err)
 					break
@@ -217,9 +249,9 @@ func (c *Client) Reader(ctx *gin.Context) {
 				}
 				canvasData.PiecesManager.Pieces = append(canvasData.PiecesManager.Pieces, &piece)
 
-			} else if msg.Event == "update-piece" {
+			} else if msgIncoming.Event == "update-piece" {
 				logging.LogInfo("WebSocket", "update-piece", nil)
-				bytes, err := json.Marshal(msg.Data)
+				bytes, err := json.Marshal(msgIncoming.Data)
 				if err != nil {
 					logging.LogError("WebSocket", "add-piece -- Could not marhsal piece data", err)
 					break
@@ -232,16 +264,28 @@ func (c *Client) Reader(ctx *gin.Context) {
 					break
 				}
 
-				if indexFloat, ok := (*msg.Data)["index"].(float64); ok {
+				if indexFloat, ok := (msgIncoming.Data)["index"].(float64); ok {
 					canvasData.PiecesManager.Pieces[int(indexFloat)] = &piece
 				} else {
-					logging.LogError("WebSocket", "msg", (*msg.Data))
+					logging.LogError("WebSocket", "msg", msgIncoming.Data)
 					break
 				}
 
-			} else if msg.Event == "update-canvas-data" {
+			} else if msgIncoming.Event == "remove-piece" {
+				logging.LogInfo("WebSocket", "remove-piece", nil)
+				if indexFloat, ok := (msgIncoming.Data)["index"].(float64); ok {
+					i := int(indexFloat)
+					if i >= 0 && i < len(canvasData.PiecesManager.Pieces) {
+						canvasData.PiecesManager.Pieces = slices.Delete(canvasData.PiecesManager.Pieces, i, i+1)
+					}
+				} else {
+					logging.LogError("WebSocket", "msg", msgIncoming.Data)
+					break
+				}
+
+			} else if msgIncoming.Event == "update-canvas-data" {
 				logging.LogInfo("WebSocket", "update-canvas-data", nil)
-				bytes, err := json.Marshal((*msg.Data)["canvas_data"])
+				bytes, err := json.Marshal(msgIncoming.Data["canvas_data"])
 				if err != nil {
 					logging.LogError("WebSocket", "add-piece -- Could not marhsal piece data", err)
 					break
@@ -254,7 +298,17 @@ func (c *Client) Reader(ctx *gin.Context) {
 					break
 				}
 
-				canvasData = incomingCanvasData
+				canvasData.BackgroundColor = incomingCanvasData.BackgroundColor
+
+				if c.userUuid == canvas.UserUuid {
+					// Only canvas owner allowed:
+					canvasData.Name = incomingCanvasData.Name
+				}
+
+				canvasDataMapStringAny := service.ToMapStringAny(canvasData)
+				msgToBroadcast.Data = map[string]any{
+					"canvas_data": canvasDataMapStringAny,
+				}
 			}
 
 			canvasDataBytes, err := json.Marshal(canvasData) // TODO: make Canvas.CanvasData the actual CanvasData type?
@@ -282,9 +336,7 @@ func (c *Client) Reader(ctx *gin.Context) {
 		}
 
 		// Fwd msg to other clients in the room
-		msg.room = room
-		msg.author = c
-		Broadcast(msg)
+		Broadcast(msgToBroadcast)
 	}
 }
 
