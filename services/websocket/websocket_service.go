@@ -3,6 +3,7 @@ package websocket_service
 import (
 	"encoding/json"
 	"net/http"
+	database_config "qolboard-api/config/database"
 	model "qolboard-api/models"
 	canvas_model "qolboard-api/models/canvas"
 	service "qolboard-api/services"
@@ -313,20 +314,20 @@ func (c *Client) Reader(ctx *gin.Context) {
 			}
 			canvas.CanvasData = canvasDataBytes
 
-			// // If needed, save updates to the canvas
-			// tx, err := database_config.DB(ctx)
-			// defer tx.Commit()
-			// if err != nil {
-			// 	tx.Rollback()
-			// 	break
-			// }
-			// err = canvas.Save(tx)
-			// if err != nil {
-			// 	logging.LogError("WebSocket", "Error saving canvas data after receiving message", err)
-			// 	tx.Rollback()
-			// 	break
-			// }
-			// tx.Commit() // Commit the transaction
+			// If needed, save updates to the canvas
+			tx, err := database_config.DB(ctx)
+			defer tx.Commit()
+			if err != nil {
+				tx.Rollback()
+				break
+			}
+			err = canvas.Save(tx)
+			if err != nil {
+				logging.LogError("WebSocket", "Error saving canvas data after receiving message", err)
+				tx.Rollback()
+				break
+			}
+			tx.Commit() // Commit the transaction
 		}
 
 		// Fwd msg to other clients in the room
