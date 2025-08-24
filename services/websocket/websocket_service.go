@@ -3,7 +3,6 @@ package websocket_service
 import (
 	"encoding/json"
 	"net/http"
-	database_config "qolboard-api/config/database"
 	model "qolboard-api/models"
 	canvas_model "qolboard-api/models/canvas"
 	service "qolboard-api/services"
@@ -234,7 +233,6 @@ func (c *Client) Reader(ctx *gin.Context) {
 			}
 
 			if msgIncoming.Event == "add-piece" {
-				logging.LogInfo("WebSocket", "add-piece", nil)
 				bytes, err := json.Marshal(msgIncoming.Data)
 				if err != nil {
 					logging.LogError("WebSocket", "add-piece -- Could not marhsal piece data", err)
@@ -250,7 +248,6 @@ func (c *Client) Reader(ctx *gin.Context) {
 				canvasData.PiecesManager.Pieces = append(canvasData.PiecesManager.Pieces, &piece)
 
 			} else if msgIncoming.Event == "update-piece" {
-				logging.LogInfo("WebSocket", "update-piece", nil)
 				bytes, err := json.Marshal(msgIncoming.Data)
 				if err != nil {
 					logging.LogError("WebSocket", "add-piece -- Could not marhsal piece data", err)
@@ -272,7 +269,6 @@ func (c *Client) Reader(ctx *gin.Context) {
 				}
 
 			} else if msgIncoming.Event == "remove-piece" {
-				logging.LogInfo("WebSocket", "remove-piece", nil)
 				if indexFloat, ok := (msgIncoming.Data)["index"].(float64); ok {
 					i := int(indexFloat)
 					if i >= 0 && i < len(canvasData.PiecesManager.Pieces) {
@@ -282,9 +278,7 @@ func (c *Client) Reader(ctx *gin.Context) {
 					logging.LogError("WebSocket", "msg", msgIncoming.Data)
 					break
 				}
-
 			} else if msgIncoming.Event == "update-canvas-data" {
-				logging.LogInfo("WebSocket", "update-canvas-data", nil)
 				bytes, err := json.Marshal(msgIncoming.Data["canvas_data"])
 				if err != nil {
 					logging.LogError("WebSocket", "add-piece -- Could not marhsal piece data", err)
@@ -319,20 +313,20 @@ func (c *Client) Reader(ctx *gin.Context) {
 			}
 			canvas.CanvasData = canvasDataBytes
 
-			// If needed, save updates to the canvas
-			tx, err := database_config.DB(ctx)
-			defer tx.Commit()
-			if err != nil {
-				tx.Rollback()
-				break
-			}
-			err = canvas.Save(tx)
-			if err != nil {
-				logging.LogError("WebSocket", "Error saving canvas data after receiving message", err)
-				tx.Rollback()
-				break
-			}
-			tx.Commit() // Commit the transaction
+			// // If needed, save updates to the canvas
+			// tx, err := database_config.DB(ctx)
+			// defer tx.Commit()
+			// if err != nil {
+			// 	tx.Rollback()
+			// 	break
+			// }
+			// err = canvas.Save(tx)
+			// if err != nil {
+			// 	logging.LogError("WebSocket", "Error saving canvas data after receiving message", err)
+			// 	tx.Rollback()
+			// 	break
+			// }
+			// tx.Commit() // Commit the transaction
 		}
 
 		// Fwd msg to other clients in the room
