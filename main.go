@@ -16,7 +16,6 @@ import (
 	response_middleware "qolboard-api/middleware/response"
 	error_service "qolboard-api/services/error"
 
-	"github.com/gin-gonic/autotls"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -86,8 +85,7 @@ func main() {
 
 	// Listen and serve router
 
-	// err := r.Run()
-	err := autotls.Run(r, os.Getenv("APP_DOMAIN"))
+	err := r.Run()
 	logging.LogInfo("main", "Running server", 0)
 	if err != nil {
 		logging.LogError("main", "Error running server", err)
