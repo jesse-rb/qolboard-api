@@ -158,6 +158,10 @@ func Save(c *gin.Context) {
 		error_service.PublicError(c, "Canvas not found", http.StatusNotFound, "canvas_id", paramId, "canvas")
 		return
 	}
+	canvas, err = canvas_model.Get(tx, id)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+	}
 
 	err = relations_service.Load(tx, canvas.GetRelations(), canvas, []string{"user", "canvas_shared_invitations", "canvas_shared_accesses"})
 	if err != nil {
