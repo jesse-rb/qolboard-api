@@ -1,11 +1,11 @@
 package controller
 
-import (
-	"log"
-	"os"
+type GetParams struct {
+	With []string `form:"with[]"`
+}
 
-	slogger "github.com/jesse-rb/slogger-go"
-)
-
-var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "controllers", log.Lshortfile+log.Ldate);
-var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "controllers", log.Lshortfile+log.Ldate);
+type IndexParams struct {
+	Page  int      `form:"page" binding:"gte=1"`
+	Limit int      `form:"limit" binding:"gte=1,lte=100"`
+	With  []string `form:"with[]"`
+}

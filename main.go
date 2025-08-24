@@ -1,12 +1,14 @@
 package main
 
 import (
-	"log"
 	"os"
+	"qolboard-api/services/logging"
 
 	database_config "qolboard-api/config/database"
 	auth_controller "qolboard-api/controllers/auth"
-	"qolboard-api/controllers/canvas_controller"
+	canvas_controller "qolboard-api/controllers/canvas"
+	canvas_shared_access_controller "qolboard-api/controllers/canvas_shared_access"
+	canvas_shared_invitation_controller "qolboard-api/controllers/canvas_shared_invitation"
 	user_controller "qolboard-api/controllers/user"
 	auth_middleware "qolboard-api/middleware/auth"
 	cors_middleware "qolboard-api/middleware/cors"
@@ -14,23 +16,19 @@ import (
 	response_middleware "qolboard-api/middleware/response"
 	error_service "qolboard-api/services/error"
 
+	"github.com/gin-gonic/autotls"
 	"github.com/gin-gonic/gin"
-	slogger "github.com/jesse-rb/slogger-go"
 	"github.com/joho/godotenv"
 )
 
 func init() {
 	err := godotenv.Load()
 	if err != nil {
-		errorLogger.Log("main", "Error loading .env file", err)
+		logging.LogError("main", "Error loading .env file", err)
 	}
 
 	database_config.ConnectToDatabase()
 }
-
-// Declare some loggers
-var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "main", log.Lshortfile+log.Ldate);
-var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "main", log.Lshortfile+log.Ldate);
 
 func main() {
 	// Setup router
@@ -65,21 +63,33 @@ func main() {
 		rUser.Use(auth_middleware.Run)
 
 		rUser.GET("", user_controller.Get)
-		rUser.POST("logout", auth_controller.Logout)
+		rUser.POST("/logout", auth_controller.Logout)
 
 		// User Canvas routes
 		rUser.POST("/canvas", canvas_controller.Save)
 		rUser.GET("/canvas", canvas_controller.Index)
-		rUser.GET("/canvas/:id", canvas_controller.Get)
-		rUser.POST("/canvas/:id", canvas_controller.Save)
-		rUser.DELETE("/canvas/:id", canvas_controller.Delete)
+		rUser.GET("/canvas/:canvas_id", canvas_controller.Get)
+		rUser.POST("/canvas/:canvas_id", canvas_controller.Save)
+		rUser.DELETE("/canvas/:canvas_id", canvas_controller.Delete)
+
+		rUser.GET("/canvas/:canvas_id/accept_invite/:code", canvas_shared_invitation_controller.AcceptInvite)
+
+		rUser.POST("/canvas/:canvas_id/shared_invitation", canvas_shared_invitation_controller.Create)
+		rUser.GET("/canvas/shared_invitation", canvas_shared_invitation_controller.Index)
+		rUser.DELETE("/canvas/shared_invitation/:canvas_shared_invitation_id", canvas_shared_invitation_controller.Delete)
+		//
+		rUser.GET("/canvas/shared_access", canvas_shared_access_controller.Index)
+		rUser.DELETE("/canvas/shared_access/:canvas_shared_access_id", canvas_shared_access_controller.Delete)
+		//
+		rUser.GET("/ws/canvas/:id", canvas_controller.Websocket)
 	}
 
 	// Listen and serve router
-	err := r.Run()
-	infoLogger.Log("main", "Running server", 0)
+	// err := r.Run()
+	err := autotls.Run(r, os.Getenv("API_DOMAIN"))
+	logging.LogInfo("main", "Running server", 0)
 	if err != nil {
-		errorLogger.Log("main", "Error running server", err)
+		logging.LogError("main", "Error running server", err)
 		os.Exit(1)
 	}
 }

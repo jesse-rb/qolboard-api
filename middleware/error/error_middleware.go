@@ -1,30 +1,24 @@
 package error_middleware
 
 import (
-	"log"
 	"net/http"
-	"os"
 	error_service "qolboard-api/services/error"
 	response_service "qolboard-api/services/response"
 
 	"github.com/gin-gonic/gin"
-	slogger "github.com/jesse-rb/slogger-go"
 )
-
-var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "error_middleware", log.Lshortfile+log.Ldate)
-var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "error_middleware", log.Lshortfile+log.Ldate)
 
 type Error struct {
 	Message string `json:"message"`
-	Field string `json:"field"`
-	Value string `json:"value"`
+	Field   string `json:"field"`
+	Value   string `json:"value"`
 }
 
 func Run(c *gin.Context) {
 	c.Next()
-	
-	var errors []*error_service.Error = make([]*error_service.Error, 0);
-	var code int = 500;
+
+	var errors []*error_service.Error = make([]*error_service.Error, 0)
+	var code int = 500
 
 	internalServerErrors := c.Errors.ByType(gin.ErrorTypePrivate)
 	validationErrors := c.Errors.ByType(gin.ErrorTypeBind)
@@ -61,3 +55,4 @@ func Run(c *gin.Context) {
 		"errors": errors,
 	})
 }
+

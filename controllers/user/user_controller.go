@@ -1,26 +1,58 @@
 package user_controller
 
 import (
-	"log"
-	"net/http"
-	"os"
+	database_config "qolboard-api/config/database"
+	controller "qolboard-api/controllers"
+	model "qolboard-api/models"
+	user_model "qolboard-api/models/user"
 	error_service "qolboard-api/services/error"
+	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
 
 	"github.com/gin-gonic/gin"
-	slogger "github.com/jesse-rb/slogger-go"
 )
 
-var infoLogger slogger.Logger = *slogger.New(os.Stdout, slogger.ANSIGreen, "user_controller", log.Lshortfile+log.Ldate)
-var errorLogger slogger.Logger = *slogger.New(os.Stderr, slogger.ANSIRed, "user_controller", log.Lshortfile+log.Ldate)
+type getParams struct {
+	controller.GetParams
+}
 
 func Get(c *gin.Context) {
-	email, exists := c.Get("email")
-	if (!exists) {
-		response_service.SetCode(c, http.StatusUnauthorized)
-		error_service.PublicError(c, "Could not find user", http.StatusUnauthorized, "auth", "", "user")
+	var params getParams = getParams{
+		GetParams: controller.GetParams{
+			With: make([]string, 0),
+		},
+	}
+
+	if err := c.ShouldBindQuery(&params); err != nil {
+		error_service.ValidationError(c, err)
 		return
 	}
 
-	response_service.SetJSON(c, gin.H{"email": email})
+	tx, err := database_config.DB(c)
+	defer tx.Commit()
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
+	}
+
+	user, err := user_model.Get(tx)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		tx.Rollback()
+		return
+	}
+
+	err = relations_service.Load(tx, model.UserRelations, user, params.With)
+	if err != nil {
+		tx.Rollback()
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
+	resp := response_service.BuildResponse(*user)
+
+	response_service.SetJSON(c, gin.H{
+		"data": resp,
+	})
 }

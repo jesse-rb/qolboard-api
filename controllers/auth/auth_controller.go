@@ -1,25 +1,22 @@
 package auth_controller
 
 import (
-	"log"
+	"fmt"
+	"net/http"
 	"os"
+	model "qolboard-api/models"
 	auth_service "qolboard-api/services/auth"
 	error_service "qolboard-api/services/error"
 	response_service "qolboard-api/services/response"
 	supabase_service "qolboard-api/services/supabase"
 
 	"github.com/gin-gonic/gin"
-	slogger "github.com/jesse-rb/slogger-go"
 )
-
-var infoLogger = slogger.New(os.Stdout, slogger.ANSIGreen, "auth_controller", log.Lshortfile+log.Ldate);
-var errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "auth_controller", log.Lshortfile+log.Ldate);
 
 func Register(c *gin.Context) {
 	var data supabase_service.RegisterBodyData
 
 	err := c.ShouldBindJSON(&data)
-
 	if err != nil {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
@@ -39,9 +36,15 @@ func Register(c *gin.Context) {
 		error_service.PublicError(c, response.Msg, code, "email", response.ErrorCode, "user")
 	}
 
-	var email string = response.Email
+	user := model.User{
+		Email: response.Email,
+		Uuid:  response.Uuid,
+	}
 
-	response_service.SetJSON(c, gin.H{"email": email, "code": response.ErrorCode})
+	response_service.SetJSON(c, gin.H{
+		"data": user,
+		"code": response.ErrorCode,
+	})
 }
 
 func SetToken(c *gin.Context) {
@@ -53,15 +56,19 @@ func SetToken(c *gin.Context) {
 		return
 	}
 
-	email, err := auth_service.ParseJWT(data.Token)
-
-	if (err != nil) {
+	claims, err := auth_service.ParseJWT(data.Token)
+	if err != nil {
 		error_service.PublicError(c, "Invalid token", 401, "token", "", "")
 		return
 	}
 
 	auth_service.SetAuthCookie(c, data.Token, data.ExpiresIn)
-	response_service.SetJSON(c, gin.H{"email": email})
+
+	user := model.User{
+		Uuid:  claims.Subject,
+		Email: claims.Email,
+	}
+	response_service.SetJSON(c, gin.H{"data": user})
 }
 
 func ResendVerificationEmail(c *gin.Context) {
@@ -103,22 +110,24 @@ func Login(c *gin.Context) {
 		return
 	}
 	if code != 200 {
-		error_service.PublicError(c, response.ErrorDescription, 401, "", "", "credentials")
+		error_service.PublicError(c, response.Msg, 401, "", "", "credentials")
 		return
 	}
 
-	var email string = response.User.Email
 	var token string = response.AccessToken
 	var expiresIn int = response.ExpiresIn
 
 	auth_service.SetAuthCookie(c, token, expiresIn)
 
-	response_service.SetJSON(c, gin.H{"email": email})
+	// Redirect to /user
+	appHost := os.Getenv("APP_HOST")
+	locatoin := fmt.Sprintf("%s/user", appHost)
+	c.Redirect(http.StatusFound, locatoin)
 }
 
 func Logout(c *gin.Context) {
 	code, err := supabase_service.Logout(c.GetString("token"))
-	if (err != nil) {
+	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}

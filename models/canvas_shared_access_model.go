@@ -1,0 +1,120 @@
+package model
+
+import (
+	service "qolboard-api/services"
+	"qolboard-api/services/logging"
+	relations_service "qolboard-api/services/relations"
+	"time"
+
+	"github.com/jmoiron/sqlx"
+)
+
+type CanvasSharedAccess struct {
+	Model
+	UserUuid                 string                  `json:"user_uuid" db:"user_uuid"`
+	CanvasId                 uint64                  `json:"canvas_id" db:"canvas_id"`
+	CanvasSharedInvitationId uint64                  `json:"canvas_shared_invitation_id" db:"canvas_shared_invitation_id"`
+	Canvas                   *Canvas                 `json:"canvas"`
+	CanvasSharedInvitation   *CanvasSharedInvitation `json:"canvas_shared_invitation"`
+	User                     *User                   `json:"user"`
+}
+
+var CanvasSharedAccessRelations relations_service.RelationRegistry = relations_service.NewRelationRegistry()
+
+func init() {
+	relations_service.BelongsTo(
+		"user",
+		CanvasSharedAccessRelations,
+		"SELECT * FROM view_users WHERE id = $1",
+		"SELECT * FROM view_users WHERE id IN (?)",
+		func(csa CanvasSharedAccess, u User) CanvasSharedAccess {
+			csa.User = &u
+			return csa
+		},
+		func(csa CanvasSharedAccess) any {
+			return csa.UserUuid
+		},
+		func(u User) any {
+			return u.Uuid
+		},
+	)
+	relations_service.BelongsTo(
+		"canvas",
+		CanvasSharedAccessRelations,
+		"SELECT * FROM canvases WHERE id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvases WHERE id IN (?) AND deleted_at IS NULL",
+		func(csa CanvasSharedAccess, c Canvas) CanvasSharedAccess {
+			csa.Canvas = &c
+			return csa
+		},
+		func(csa CanvasSharedAccess) any {
+			return csa.CanvasId
+		},
+		func(c Canvas) any {
+			return c.ID
+		},
+	)
+	relations_service.BelongsTo(
+		"canvas_shared_invitation",
+		CanvasSharedAccessRelations,
+		"SELECT * FROM canvas_shared_invitations WHERE id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvas_shared_invitations WHERE id IN (?) AND deleted_at IS NULL",
+		func(csa CanvasSharedAccess, csi CanvasSharedInvitation) CanvasSharedAccess {
+			csa.CanvasSharedInvitation = &csi
+			return csa
+		},
+		func(csa CanvasSharedAccess) any {
+			return csa.CanvasSharedInvitationId
+		},
+		func(csi CanvasSharedInvitation) any {
+			return csi.ID
+		},
+	)
+}
+
+func (csa CanvasSharedAccess) GetRelations() relations_service.RelationRegistry {
+	return CanvasSharedAccessRelations
+}
+
+func (csa CanvasSharedAccess) GetPrimaryKey() any {
+	return csa.ID
+}
+
+func (csa *CanvasSharedAccess) Insert(tx *sqlx.Tx) error {
+	now := time.Now()
+
+	err := tx.Get(csa, `
+INSERT INTO canvas_shared_accesses(created_at, updated_at, user_uuid, canvas_id, canvas_shared_invitation_id)
+VALUES($1, $2, get_user_uuid(), $3, $4) RETURNING *
+	`, now, now, csa.CanvasId, csa.CanvasSharedInvitationId)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (csa *CanvasSharedAccess) Delete(tx *sqlx.Tx) error {
+	now := time.Now()
+
+	err := tx.Get(csa, `
+UPDATE canvas_shared_accesses
+SET deleted_at = $1, updated_at = $2
+WHERE id = $3
+AND (
+	user_uuid = get_user_uuid()
+	OR (SELECT canvases.user_uuid FROM canvases WHERE canvases.id = canvas_shared_accesses.canvas_id) = get_user_uuid()
+) RETURNING *
+`,
+		now, now, csa.ID,
+	)
+	if err != nil {
+		logging.LogError("[model]", "Error deleting canvas shared access", err)
+	}
+	return err
+}
+
+func (csa CanvasSharedAccess) Response() map[string]any {
+	r := service.ToMapStringAny(csa)
+	return r
+}
