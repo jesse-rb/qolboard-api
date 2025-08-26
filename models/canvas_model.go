@@ -73,15 +73,16 @@ func (c *Canvas) Save(tx *sqlx.Tx) error {
 	}
 
 	if c.ID > 0 {
-		_, err = tx.Exec(fmt.Sprintf(`
+		err = tx.Get(c, fmt.Sprintf(`
 UPDATE canvases c
 SET canvas_data = $1, updated_at = $2
 WHERE %s
 AND id = $3
 AND deleted_at IS NULL
+RETURNING *
 		`, SqlHasAccessToCanvas("c")), string(canvasDataBytes), now, c.ID)
 	} else {
-		_, err = tx.Exec("INSERT INTO canvases(canvas_data, created_at, updated_at, user_uuid) VALUES($1, $2, $3, get_user_uuid())", string(canvasDataBytes), now, now)
+		err = tx.Get(c, "INSERT INTO canvases(canvas_data, created_at, updated_at, user_uuid) VALUES($1, $2, $3, get_user_uuid()) RETURNING *", string(canvasDataBytes), now, now)
 	}
 
 	if err != nil {

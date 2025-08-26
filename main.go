@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"qolboard-api/config"
 	"qolboard-api/services/logging"
 
 	database_config "qolboard-api/config/database"
@@ -85,8 +86,12 @@ func main() {
 	}
 
 	// Listen and serve router
-	// err := r.Run()
-	err := autotls.Run(r, os.Getenv("API_DOMAIN"))
+	var err error
+	if config.IsDev() {
+		err = r.Run()
+	} else {
+		err = autotls.Run(r, os.Getenv("API_DOMAIN"))
+	}
 	logging.LogInfo("main", "Running server", 0)
 	if err != nil {
 		logging.LogError("main", "Error running server", err)
