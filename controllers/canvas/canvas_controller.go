@@ -1,15 +1,17 @@
 package canvas_controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	database_config "qolboard-api/config/database"
 	controller "qolboard-api/controllers"
 	model "qolboard-api/models"
 	canvas_model "qolboard-api/models/canvas"
+	service "qolboard-api/services"
 	auth_service "qolboard-api/services/auth"
+	canvas_service "qolboard-api/services/canvas"
 	error_service "qolboard-api/services/error"
+	"qolboard-api/services/logging"
 	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
 	websocket_service "qolboard-api/services/websocket"
@@ -130,17 +132,13 @@ func Save(c *gin.Context) {
 		}
 	}
 
-	var canvasData canvas_model.CanvasData
+	var canvasData canvas_service.CanvasData
 	if err := c.ShouldBindJSON(&canvasData); err != nil {
 		c.Error(err).SetType(gin.ErrorTypeBind)
 		return
 	}
 
-	canvasDataJson, err := json.Marshal(canvasData)
-	if err != nil {
-		error_service.InternalError(c, err.Error())
-		return
-	}
+	logging.LogDebug("[controller]", "canvasData", canvasData)
 
 	tx, err := database_config.DB(c)
 	defer tx.Rollback()
@@ -151,7 +149,7 @@ func Save(c *gin.Context) {
 
 	canvas := &model.Canvas{}
 	canvas.ID = id
-	canvas.CanvasData = canvasDataJson
+	canvas.CanvasData = canvasData
 
 	err = canvas.Save(tx)
 	if err != nil {
@@ -241,6 +239,7 @@ func Websocket(c *gin.Context) {
 	}
 
 	tx, err := database_config.DB(c)
+	defer tx.Rollback()
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
@@ -252,6 +251,7 @@ func Websocket(c *gin.Context) {
 		error_service.PublicError(c, "Could not find canvas", http.StatusNotFound, "id", paramId, "canvas")
 		return
 	}
+	tx.Commit()
 
 	chResume := make(chan *websocket_service.Client, 1)
 
@@ -259,6 +259,20 @@ func Websocket(c *gin.Context) {
 	websocket_service.Join(userUuid, canvas, conn, chResume)
 
 	client := <-chResume
+
+	canvas.CanvasData = client.GetRoom().Canvas.CanvasData
+	canvasMap := service.ToMapStringAny(canvas)
+	msg := websocket_service.RoomMessage{
+		Event: "update-canvas-data",
+		Data:  canvasMap,
+	}
+	client.Send(msg)
+
+	conn.SetCloseHandler(func(code int, text string) error {
+		logging.LogInfo("WebSocket", "Connection closed", nil)
+		client.Leave()
+		return nil
+	})
 
 	// Go rotine for reading websocket messages
 	go client.Reader(c)

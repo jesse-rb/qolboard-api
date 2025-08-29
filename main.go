@@ -86,13 +86,14 @@ func main() {
 	}
 
 	// Listen and serve router
+	logging.LogInfo("main", "Running server", 0)
+
 	var err error
 	if config.IsDev() {
 		err = r.Run()
 	} else {
 		err = autotls.Run(r, os.Getenv("API_DOMAIN"))
 	}
-	logging.LogInfo("main", "Running server", 0)
 	if err != nil {
 		logging.LogError("main", "Error running server", err)
 		os.Exit(1)

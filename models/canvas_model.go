@@ -4,21 +4,21 @@ import (
 	"encoding/json"
 	"fmt"
 	service "qolboard-api/services"
+	canvas_service "qolboard-api/services/canvas"
 	"qolboard-api/services/logging"
 	relations_service "qolboard-api/services/relations"
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"gorm.io/datatypes"
 )
 
 type Canvas struct {
 	Model
-	UserUuid                string                   `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:Uuid;type:uuid;not null;index"`
-	CanvasData              datatypes.JSON           `json:"canvas_data" db:"canvas_data"`
-	CanvasSharedAccesses    []CanvasSharedAccess     `json:"canvas_shared_accesses"`
-	CanvasSharedInvitations []CanvasSharedInvitation `json:"canvas_shared_invitations"`
-	User                    *User                    `json:"user"`
+	UserUuid                string                    `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:Uuid;type:uuid;not null;index"`
+	CanvasData              canvas_service.CanvasData `json:"canvas_data" db:"canvas_data"`
+	CanvasSharedAccesses    []CanvasSharedAccess      `json:"canvas_shared_accesses"`
+	CanvasSharedInvitations []CanvasSharedInvitation  `json:"canvas_shared_invitations"`
+	User                    *User                     `json:"user"`
 }
 
 var CanvasRelations relations_service.RelationRegistry = relations_service.NewRelationRegistry()
@@ -63,6 +63,28 @@ func init() {
 		func(c Canvas) any { return c.ID },
 		func(csa CanvasSharedAccess) any { return csa.CanvasId },
 	)
+}
+
+func (c *Canvas) SystemUpdate(tx *sqlx.Tx) error {
+	now := time.Now()
+	canvasDataBytes, err := json.Marshal(c.CanvasData)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Get(c, `
+UPDATE canvases c
+SET canvas_data = $1, updated_at = $2
+WHERE id = $3
+AND deleted_at IS NULL
+RETURNING *
+	`, string(canvasDataBytes), now, c.ID)
+	if err != nil {
+		logging.LogError("[model]", "Error system updating canvas", err)
+		return err
+	}
+
+	return nil
 }
 
 func (c *Canvas) Save(tx *sqlx.Tx) error {

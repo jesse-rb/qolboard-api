@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	infoLogger  = slogger.New(os.Stdout, slogger.ANSIBlue, "", log.Ldate+log.Ltime+log.Lshortfile)
+	infoLogger  = slogger.New(os.Stdout, slogger.ANSIGreen, "", log.Ldate+log.Ltime+log.Lshortfile)
 	errorLogger = slogger.New(os.Stderr, slogger.ANSIRed, "", log.Ldate+log.Ltime+log.Lshortfile)
 	debugLogger = slogger.New(os.Stdout, slogger.ANSIYellow, "", log.Ldate+log.Ltime+log.Lshortfile)
 )

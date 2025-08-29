@@ -16,12 +16,16 @@ var (
 	dbPriv *sqlx.DB
 )
 
+// If c is not null, get_user_uuid() postgres function will be available to get the authenticated user UUID
 func DB(c *gin.Context) (*sqlx.Tx, error) {
 	return beginDbTransaction(c)
 }
 
 func beginDbTransaction(c *gin.Context) (*sqlx.Tx, error) {
-	user_uuid := auth_service.GetClaims(c).Subject
+	user_uuid := ""
+	if c != nil {
+		user_uuid = auth_service.GetClaims(c).Subject
+	}
 
 	// Begin transaction
 	var tx *sqlx.Tx
@@ -33,12 +37,14 @@ func beginDbTransaction(c *gin.Context) (*sqlx.Tx, error) {
 		return nil, err
 	}
 
-	// Set the required databse session variables for the transaction, for RLS purposes and application query filters
-	_, err = tx.Exec("SELECT set_user_uuid($1)", user_uuid)
-	if err != nil {
-		tx.Rollback()
-		logging.LogError("[config]", "Failed to SET databse session user_uuid REQUIRED for RLS", err.Error())
-		return nil, err
+	if c != nil {
+		// Set the required databse session variables for the transaction, for RLS purposes and application query filters
+		_, err = tx.Exec("SELECT set_user_uuid($1)", user_uuid)
+		if err != nil {
+			tx.Rollback()
+			logging.LogError("[config]", "Failed to SET databse session user_uuid REQUIRED for RLS", err.Error())
+			return nil, err
+		}
 	}
 
 	return tx, err
