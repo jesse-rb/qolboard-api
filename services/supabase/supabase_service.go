@@ -131,7 +131,7 @@ func ResendEmailVerification(email string) (int, error) {
 func supabase(method string, path string, bodyData []byte, token string) (code int, responseBodyBytes []byte, err error) {
 	var host string = os.Getenv("SUPABASE_HOST")
 	var url string = fmt.Sprintf("%s/%s", host, path)
-	var apiKey string = os.Getenv("SUPABASE_ANON_KEY")
+	var apiKey string = os.Getenv("SUPABASE_PUBLISHABLE")
 
 	request, err := http.NewRequest(method, url, bytes.NewBuffer(bodyData))
 	if err != nil {
