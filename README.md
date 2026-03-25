@@ -32,7 +32,7 @@ easy local testing supabase links:
 + A running database to connect to
 + A `.env` with environment variables that suits your development environment (KEEP EXCLUDED FROMN VERSION CONTROL)
 
-    Feel free to use the following command from the project root direcoty as a starting point for your `.env` file, the provided example `.env.example` (For `SUPABASE_...` and `DATABASE_...` env values see output of `npx supabase init` command documented above)
+    Feel free to use the following command from the project root directory as a starting point for your `.env` file, the provided example `.env.example` (For `SUPABASE_...` and `DATABASE_...` env values see output of `npx supabase init` command documented above)
     ```
     cp .env.example .env
     ```
