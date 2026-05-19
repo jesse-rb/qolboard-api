@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	database_config "qolboard-api/config/database"
-	controller "qolboard-api/controllers"
+	"qolboard-api/controllers"
 	model "qolboard-api/models"
 	canvas_model "qolboard-api/models/canvas"
 	service "qolboard-api/services"
@@ -21,16 +21,16 @@ import (
 )
 
 type getParams struct {
-	controller.GetParams
+	controllers.GetParams
 }
 
 type indexParams struct {
-	controller.IndexParams
+	controllers.IndexParams
 }
 
 func Index(c *gin.Context) {
 	var params indexParams = indexParams{
-		IndexParams: controller.IndexParams{
+		IndexParams: controllers.IndexParams{
 			Page:  1,
 			Limit: 100,
 			With:  make([]string, 0),
@@ -72,7 +72,7 @@ func Index(c *gin.Context) {
 
 func Get(c *gin.Context) {
 	var params getParams = getParams{
-		GetParams: controller.GetParams{
+		GetParams: controllers.GetParams{
 			With: make([]string, 0),
 		},
 	}
@@ -216,7 +216,7 @@ func Websocket(c *gin.Context) {
 
 	// Parse query params
 	var params getParams = getParams{
-		GetParams: controller.GetParams{
+		GetParams: controllers.GetParams{
 			With: make([]string, 0),
 		},
 	}

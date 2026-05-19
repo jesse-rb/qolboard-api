@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"os"
 	"qolboard-api/config"
+	"qolboard-api/controllers"
+	"qolboard-api/services/email"
 	"qolboard-api/services/logging"
 
 	database_config "qolboard-api/config/database"
-	auth_controller "qolboard-api/controllers/auth"
 	canvas_controller "qolboard-api/controllers/canvas"
 	canvas_shared_access_controller "qolboard-api/controllers/canvas_shared_access"
 	canvas_shared_invitation_controller "qolboard-api/controllers/canvas_shared_invitation"
@@ -23,15 +25,35 @@ import (
 )
 
 func init() {
+	// Ensure our services are working in UTC
+	os.Setenv("TZ", "UTC")
+
 	err := godotenv.Load()
 	if err != nil {
-		logging.LogError("main", "Error loading .env file", err)
+		logging.LogError("main", "Error loading .env file", err.Error())
 	}
 
 	database_config.ConnectToDatabase()
 }
 
 func main() {
+	ctx := context.Background()
+
+	// Setup email client
+	fromEmail := "info@qolboard.com"
+	fromName := "qolboard"
+	var emailCleint email.EmailClient = email.NewLogClient(fromEmail, fromName)
+	if !config.IsDev() {
+		var err error
+		emailCleint, err = email.NewSESClient(ctx, fromEmail, fromName)
+		if err != nil {
+			logging.LogError("main", "error starting ses client", err)
+			os.Exit(1)
+		}
+	}
+
+	restHandler := controllers.NewRESTHAndler(emailCleint)
+
 	// Setup router
 	r := gin.Default()
 
@@ -50,10 +72,11 @@ func main() {
 	// Auth routes
 	rAuth := r.Group("/auth")
 	{
-		rAuth.POST("/register", auth_controller.Register)
-		rAuth.POST("/login", auth_controller.Login)
-		rAuth.POST("/set_token", auth_controller.SetToken)
-		rAuth.POST("/resend_verification_email", auth_controller.ResendVerificationEmail)
+		rAuth.POST("/register", restHandler.Register)
+		rAuth.POST("/verify", restHandler.VerifyEmail)
+		rAuth.POST("/login", restHandler.Login)
+		rAuth.POST("/set_token", restHandler.SetToken)
+		rAuth.POST("/resend_verification_email", restHandler.ResendVerificationEmail)
 	}
 
 	// Define authenticated routes
@@ -64,7 +87,7 @@ func main() {
 		rUser.Use(auth_middleware.Run)
 
 		rUser.GET("", user_controller.Get)
-		rUser.POST("/logout", auth_controller.Logout)
+		rUser.POST("/logout", restHandler.Logout)
 
 		// User Canvas routes
 		rUser.POST("/canvas", canvas_controller.Save)

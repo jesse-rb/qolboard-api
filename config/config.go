@@ -3,5 +3,5 @@ package config
 import "os"
 
 func IsDev() bool {
-	return os.Getenv("GIN_MODE") == "dev"
+	return os.Getenv("ENV") == "dev"
 }

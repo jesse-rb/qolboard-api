@@ -7,6 +7,10 @@ import (
 	"qolboard-api/services/logging"
 )
 
+func ToPointer[T any](v T) *T {
+	return &v
+}
+
 // Generates a random code
 func GenerateCode(len uint) (string, error) {
 	// Number of bytes needed for len base64 encoded chars
