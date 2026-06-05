@@ -1,14 +1,13 @@
 package auth_service
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"qolboard-api/config"
-	"qolboard-api/services/logging"
+	model "qolboard-api/models"
+	"time"
 
-	"github.com/MicahParks/keyfunc/v3"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -63,27 +62,54 @@ func ExpireAuthCookie(c *gin.Context) {
 }
 
 func ParseJWT(token string) (*Claims, error) {
-	supabaseHost := os.Getenv("SUPABASE_HOST")
-	if supabaseHost == "" {
-		logging.LogError("getJWKSURL", "Please set SUPABASE_HOST environment variable", "empty")
-		panic(1)
-	}
-	jwksURL := fmt.Sprintf("%s/.well-known/jwks.json", supabaseHost)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	keyfunc, err := keyfunc.NewDefaultCtx(ctx, []string{jwksURL})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create keyfunc from jwks: %w", err)
+	iss := os.Getenv("API_HOST")
+	keyfunc := func(token *jwt.Token) (any, error) {
+		// Validate signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpcected signing method: %v", token.Header["alg"])
+		}
+
+		secret := os.Getenv("ACCESS_TOKEN_SECRET")
+		return []byte(secret), nil
 	}
 
 	// Parse token and verify signature and validate token issuer
 	claims := &Claims{}
-	withIssuer := jwt.WithIssuer(supabaseHost)
-	_, err = jwt.ParseWithClaims(token, claims, keyfunc.Keyfunc, withIssuer)
+	withIssuer := jwt.WithIssuer(iss)
+	verifiedToken, err := jwt.ParseWithClaims(token, claims, keyfunc, withIssuer)
 	if err != nil {
-		// Check if the token is valid
-		return nil, fmt.Errorf("error validating token: %w", err)
+		return nil, fmt.Errorf("error verifying token: %w", err)
 	}
 
+	// Ensure token is valid, and we can get claims
+	claims, ok := verifiedToken.Claims.(*Claims)
+	if !ok || !verifiedToken.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
 	return claims, nil
+}
+
+func IssueJWT(user model.User) (string, error) {
+	iss := os.Getenv("API_HOST")
+	now := time.Now()
+	iat := jwt.NewNumericDate(now)
+	exp := jwt.NewNumericDate(now.Add(config.JWTTTL())) // JWT expires in 15 minutes from now
+	claims := &Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    iss,
+			Subject:   user.Uuid,
+			IssuedAt:  iat,
+			ExpiresAt: exp,
+		},
+	}
+
+	unsigned := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	secret := os.Getenv("ACCESS_TOKEN_SECRET")
+	token, err := unsigned.SignedString([]byte(secret))
+	if err != nil {
+		return "", fmt.Errorf("error signing token: %w", err)
+	}
+
+	return token, nil
 }

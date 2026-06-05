@@ -10,7 +10,7 @@ import (
 
 func Get(tx *sqlx.Tx) (*model.User, error) {
 	user := &model.User{}
-	err := tx.Get(user, "SELECT * FROM view_users u WHERE u.id = get_user_uuid()")
+	err := tx.Get(user, "SELECT * FROM users u WHERE u.id = get_user_uuid()")
 	if err != nil {
 		return nil, err
 	}

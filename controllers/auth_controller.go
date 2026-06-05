@@ -3,9 +3,8 @@ package controllers
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
-	"os"
+	"qolboard-api/config"
 	database_config "qolboard-api/config/database"
 	model "qolboard-api/models"
 	user_model "qolboard-api/models/user"
@@ -17,18 +16,17 @@ import (
 	"qolboard-api/services/hashing"
 	"qolboard-api/services/logging"
 	response_service "qolboard-api/services/response"
-	supabase_service "qolboard-api/services/supabase"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-type RegisterBodyData struct {
+type registerBodyData struct {
 	Email string `json:"email" binding:"required,email"`
 }
 
 func (h *RESTHandler) Register(c *gin.Context) {
-	var data RegisterBodyData
+	var data registerBodyData
 
 	err := c.ShouldBindJSON(&data)
 	if err != nil {
@@ -170,32 +168,12 @@ func (h *RESTHandler) VerifyEmail(c *gin.Context) {
 	})
 }
 
-func (h *RESTHandler) SetToken(c *gin.Context) {
-	var data supabase_service.SetTokenBodyData
-
-	err := c.ShouldBindJSON(&data)
-	if err != nil {
-		c.Error(err).SetType(gin.ErrorTypeBind)
-		return
-	}
-
-	claims, err := auth_service.ParseJWT(data.Token)
-	if err != nil {
-		error_service.PublicError(c, "Invalid token", 401, "token", "", "")
-		return
-	}
-
-	auth_service.SetAuthCookie(c, data.Token, data.ExpiresIn)
-
-	user := model.User{
-		Uuid:  claims.Subject,
-		Email: claims.Email,
-	}
-	response_service.SetJSON(c, gin.H{"data": user})
+type requestOTPBodyData struct {
+	Email string `json:"email" binding:"required,email"`
 }
 
-func (h *RESTHandler) ResendVerificationEmail(c *gin.Context) {
-	var data supabase_service.ResendEmailVerificationBodyData
+func (h *RESTHandler) RequestOTP(c *gin.Context) {
+	var data registerBodyData
 
 	err := c.ShouldBindJSON(&data)
 	if err != nil {
@@ -203,23 +181,79 @@ func (h *RESTHandler) ResendVerificationEmail(c *gin.Context) {
 		return
 	}
 
-	// TODO: verify we have an unverified user for this email
+	tx, err := database_config.DB(nil)
+	if err != nil || tx == nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
 
-	code, err := supabase_service.ResendEmailVerification(data.Email)
+	defer database.StandardDeferRollback(tx)
+
+	// Get user by email
+	user, err := user_model.GetByEmail(tx, data.Email)
+	isErrNoRows := errors.Is(err, sql.ErrNoRows)
+	if err != nil && !isErrNoRows {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
+	// Check if user is verified
+	if isErrNoRows || user == nil {
+		error_service.PublicError(c, "invalid user", http.StatusUnauthorized, "email", data.Email, "user")
+		return
+	}
+
+	if user.VerifiedAt == nil {
+		error_service.PublicError(c, "user is not verified", http.StatusBadRequest, "email", data.Email, "user")
+		return
+	}
+
+	now := time.Now()
+	if user.LoginOTPIAT != nil && user.LoginOTPIAT.Add(5*time.Minute).After(now) {
+		error_service.PublicError(c, "too soon", http.StatusTooManyRequests, "email", data.Email, "user")
+	}
+
+	// Generate OTP
+	code, err := service.GenerateCode(6)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}
-	if code != 200 {
-		error_service.PublicError(c, "", code, "", "", "credentials")
+
+	hashed := hashing.Sha256(code)
+
+	// Save OTP
+	user.LoginOTP = &hashed
+	user.LoginOTPIAT = &now
+
+	err = user.Update(tx, []string{"login_otp", "login_otp_iat"})
+	if err != nil {
+		error_service.InternalError(c, err.Error())
 		return
 	}
 
-	response_service.SetJSON(c, gin.H{"email": data.Email})
+	// Send OTP to email
+	email.SendOTPEmail(c, h.emailClient, user.Email, code)
+
+	// If all went well, commit tx
+	err = tx.Commit()
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
+	response_service.SetJSON(c, map[string]any{
+		"message": "",
+	})
+}
+
+type loginBodyData struct {
+	Email string `json:"email" binding:"required,email"`
+	OTP   string `json:"otp" binding:"required"`
 }
 
 func (h *RESTHandler) Login(c *gin.Context) {
-	var data supabase_service.LoginBodyData
+	var data loginBodyData
 
 	err := c.ShouldBindJSON(&data)
 	if err != nil {
@@ -227,37 +261,63 @@ func (h *RESTHandler) Login(c *gin.Context) {
 		return
 	}
 
-	code, response, err := supabase_service.Login(data)
+	// Start tx
+	tx, err := database_config.DB(nil)
+	if err != nil || tx == nil {
+		error_service.InternalError(c, err.Error())
+	}
+	defer database.StandardDeferRollback(tx)
+
+	// Get user by email
+	user, err := user_model.GetByEmail(tx, data.Email)
+	isErrNoRows := errors.Is(err, sql.ErrNoRows)
+	if err != nil && !isErrNoRows {
+		error_service.InternalError(c, err.Error())
+	}
+
+	// Check if valid user
+	if isErrNoRows || user == nil {
+		error_service.PublicError(c, "invalid user", http.StatusUnauthorized, "email", data.Email, "user")
+		return
+	}
+
+	// Hash OTP
+	hashed := hashing.Sha256(data.OTP)
+
+	// Verify hashed OTP match
+	now := time.Now()
+	if !(user.LoginOTP != nil && user.LoginOTPIAT != nil && user.LoginOTPIAT.Add(config.LoginOTPTTL()).After(now) && *user.LoginOTP == hashed) {
+		error_service.PublicError(c, "invalid opt", http.StatusUnauthorized, "otp", data.OTP, "user")
+		return
+	}
+
+	// Expire OTP
+	user.LoginOTP = nil
+	user.LoginOTPIAT = nil
+	err = user.Update(tx, []string{"login_otp", "login_otp_iat"})
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}
-	if code != 200 {
-		error_service.PublicError(c, response.Msg, 401, "", "", "credentials")
+
+	// Issue JWT token
+	token, err := auth_service.IssueJWT(*user)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
 		return
 	}
 
-	var token string = response.AccessToken
-	var expiresIn int = response.ExpiresIn
+	// Set token
+	auth_service.SetAuthCookie(c, token, int(config.JWTTTL().Seconds()))
 
-	auth_service.SetAuthCookie(c, token, expiresIn)
-
-	// Redirect to /user
-	appHost := os.Getenv("APP_HOST")
-	locatoin := fmt.Sprintf("%s/user", appHost)
-	c.Redirect(http.StatusFound, locatoin)
+	response_service.SetJSON(c, map[string]any{
+		"message": "",
+	})
 }
 
 func (h *RESTHandler) Logout(c *gin.Context) {
-	code, err := supabase_service.Logout(c.GetString("token"))
-	if err != nil {
-		error_service.InternalError(c, err.Error())
-		return
-	}
-	if code < 200 && code >= 300 {
-		error_service.PublicError(c, "Could not logout", 401, "", "", "")
-		return
-	}
+	// TODO: expire/invalidate refresh token
 
+	// Expire cookie
 	auth_service.ExpireAuthCookie(c)
 }

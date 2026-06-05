@@ -41,8 +41,8 @@ func init() {
 	relations_service.BelongsTo(
 		"user",
 		CanvasSharedInvitationRelations,
-		"SELECT * FROM view_users WHERE id = $1",
-		"SELECT * FROM view_users WHERE id IN (?)",
+		"SELECT * FROM users WHERE id = $1",
+		"SELECT * FROM users WHERE id IN (?)",
 		func(csi CanvasSharedInvitation, u User) CanvasSharedInvitation {
 			csi.User = &u
 			return csi

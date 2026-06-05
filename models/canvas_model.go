@@ -36,8 +36,8 @@ func init() {
 	relations_service.HasOne(
 		"user",
 		CanvasRelations,
-		"SELECT * FROM view_users WHERE id = $1",
-		"SELECT * FROM view_users WHERE id IN (?)",
+		"SELECT * FROM users WHERE id = $1",
+		"SELECT * FROM users WHERE id IN (?)",
 		func(c Canvas, u User) Canvas { c.User = &u; return c },
 		func(c Canvas) any { return c.UserUuid },
 		func(u User) any { return u.Uuid },

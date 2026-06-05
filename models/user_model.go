@@ -115,8 +115,14 @@ func (u *User) Update(tx *sqlx.Tx, fieldsToUpdate []string) error {
 		case "verified_at":
 			params = append(params, u.VerifiedAt)
 			fmt.Fprintf(&builder, " verified_at = $%d", i+1)
+		case "login_otp":
+			params = append(params, u.LoginOTP)
+			fmt.Fprintf(&builder, " login_otp = $%d", i+1)
+		case "login_otp_iat":
+			params = append(params, u.LoginOTPIAT)
+			fmt.Fprintf(&builder, " login_otp_iat = $%d", i+1)
 		default:
-			return fmt.Errorf("failed to update user with unkown field specified to update")
+			return fmt.Errorf("failed to update user with unkown field specified to update: %s", fieldName)
 		}
 	}
 
