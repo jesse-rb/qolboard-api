@@ -3,7 +3,9 @@ package controllers
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
 	"qolboard-api/config"
 	database_config "qolboard-api/config/database"
 	model "qolboard-api/models"
@@ -107,8 +109,12 @@ func (h *RESTHandler) Register(c *gin.Context) {
 		return
 	}
 
+	resp := model.User{
+		Email: data.Email,
+	}
+
 	response_service.SetJSON(c, gin.H{
-		"message": "",
+		"data": resp,
 	})
 }
 
@@ -163,9 +169,17 @@ func (h *RESTHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	response_service.SetJSON(c, gin.H{
-		"message": "",
-	})
+	// If email has been verified, we can log the user in automatically
+	token, err := auth_service.IssueJWT(*user)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+	}
+	auth_service.SetAuthCookie(c, token, int(config.JWTTTL()))
+
+	// Redirect to /user
+	appHost := os.Getenv("APP_HOST")
+	locatoin := fmt.Sprintf("%s/user", appHost)
+	c.Redirect(http.StatusFound, locatoin)
 }
 
 type requestOTPBodyData struct {
@@ -242,8 +256,12 @@ func (h *RESTHandler) RequestOTP(c *gin.Context) {
 		return
 	}
 
+	resp := model.User{
+		Email: data.Email,
+	}
+
 	response_service.SetJSON(c, map[string]any{
-		"message": "",
+		"data": resp,
 	})
 }
 
@@ -310,9 +328,10 @@ func (h *RESTHandler) Login(c *gin.Context) {
 	// Set token
 	auth_service.SetAuthCookie(c, token, int(config.JWTTTL().Seconds()))
 
-	response_service.SetJSON(c, map[string]any{
-		"message": "",
-	})
+	// Redirect to /user
+	appHost := os.Getenv("APP_HOST")
+	locatoin := fmt.Sprintf("%s/user", appHost)
+	c.Redirect(http.StatusFound, locatoin)
 }
 
 func (h *RESTHandler) Logout(c *gin.Context) {

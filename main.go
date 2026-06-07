@@ -76,7 +76,6 @@ func main() {
 		rAuth.POST("/verify", restHandler.VerifyEmail)
 		rAuth.POST("/request_otp", restHandler.RequestOTP)
 		rAuth.POST("/login", restHandler.Login)
-		// rAuth.POST("/set_token", restHandler.SetToken)
 		// rAuth.POST("/resend_verification_email", restHandler.ResendVerificationEmail)
 	}
 
