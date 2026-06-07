@@ -55,17 +55,15 @@ func ConnectToDatabase() {
 
 	host := os.Getenv("DB_HOST")
 	name := os.Getenv("DB_NAME")
-	port := os.Getenv("DB_PORT")
 	username := os.Getenv("DB_USERNAME")
 	password := os.Getenv("DB_PASSWORD")
 	sslmode := os.Getenv("DB_SSLMODE")
 
 	dsn := fmt.Sprintf(
-		"postgresql://%s:%s@%s:%s/%s?sslmode=%s",
+		"postgresql://%s:%s@%s/%s?sslmode=%s",
 		username,
 		password,
 		host,
-		port,
 		name,
 		sslmode,
 	)
