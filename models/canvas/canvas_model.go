@@ -8,7 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-func Get(tx *sqlx.Tx, canvasId uint64) (*model.Canvas, error) {
+func Get(tx *sqlx.Tx, canvasId string) (*model.Canvas, error) {
 	canvas := &model.Canvas{}
 	err := tx.Get(canvas, fmt.Sprintf(`
 SELECT *

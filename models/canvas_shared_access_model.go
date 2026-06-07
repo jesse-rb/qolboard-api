@@ -11,9 +11,9 @@ import (
 
 type CanvasSharedAccess struct {
 	Model
-	UserUuid                 string                  `json:"user_uuid" db:"user_uuid"`
-	CanvasId                 uint64                  `json:"canvas_id" db:"canvas_id"`
-	CanvasSharedInvitationId uint64                  `json:"canvas_shared_invitation_id" db:"canvas_shared_invitation_id"`
+	UserId                   string                  `json:"user_id" db:"user_id"`
+	CanvasId                 string                  `json:"canvas_id" db:"canvas_id"`
+	CanvasSharedInvitationId string                  `json:"canvas_shared_invitation_id" db:"canvas_shared_invitation_id"`
 	Canvas                   *Canvas                 `json:"canvas"`
 	CanvasSharedInvitation   *CanvasSharedInvitation `json:"canvas_shared_invitation"`
 	User                     *User                   `json:"user"`
@@ -25,17 +25,17 @@ func init() {
 	relations_service.BelongsTo(
 		"user",
 		CanvasSharedAccessRelations,
-		"SELECT * FROM view_users WHERE id = $1",
-		"SELECT * FROM view_users WHERE id IN (?)",
+		"SELECT * FROM users WHERE id = $1",
+		"SELECT * FROM users WHERE id IN (?)",
 		func(csa CanvasSharedAccess, u User) CanvasSharedAccess {
 			csa.User = &u
 			return csa
 		},
 		func(csa CanvasSharedAccess) any {
-			return csa.UserUuid
+			return csa.UserId
 		},
 		func(u User) any {
-			return u.Uuid
+			return u.Id
 		},
 	)
 	relations_service.BelongsTo(
@@ -84,7 +84,7 @@ func (csa *CanvasSharedAccess) Insert(tx *sqlx.Tx) error {
 	now := time.Now()
 
 	err := tx.Get(csa, `
-INSERT INTO canvas_shared_accesses(created_at, updated_at, user_uuid, canvas_id, canvas_shared_invitation_id)
+INSERT INTO canvas_shared_accesses(created_at, updated_at, user_id, canvas_id, canvas_shared_invitation_id)
 VALUES($1, $2, get_user_uuid(), $3, $4) RETURNING *
 	`, now, now, csa.CanvasId, csa.CanvasSharedInvitationId)
 	if err != nil {
@@ -102,8 +102,8 @@ UPDATE canvas_shared_accesses
 SET deleted_at = $1, updated_at = $2
 WHERE id = $3
 AND (
-	user_uuid = get_user_uuid()
-	OR (SELECT canvases.user_uuid FROM canvases WHERE canvases.id = canvas_shared_accesses.canvas_id) = get_user_uuid()
+	user_id = get_user_uuid()
+	OR (SELECT canvases.user_id FROM canvases WHERE canvases.id = canvas_shared_accesses.canvas_id) = get_user_uuid()
 ) RETURNING *
 `,
 		now, now, csa.ID,

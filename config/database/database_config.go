@@ -42,7 +42,7 @@ func beginDbTransaction(c *gin.Context) (*sqlx.Tx, error) {
 		_, err = tx.Exec("SELECT set_user_uuid($1)", user_uuid)
 		if err != nil {
 			tx.Rollback()
-			logging.LogError("[config]", "Failed to SET databse session user_uuid REQUIRED for RLS", err.Error())
+			logging.LogError("[config]", "Failed to SET databse session user_id REQUIRED for RLS", err.Error())
 			return nil, err
 		}
 	}

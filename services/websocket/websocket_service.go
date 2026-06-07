@@ -35,7 +35,7 @@ type dataChJoin struct {
 }
 
 type RoomsManager struct {
-	roomsMap    map[uint64]*Room
+	roomsMap    map[string]*Room
 	chJoin      chan *dataChJoin
 	chLeave     chan *Client
 	chBroadcast chan RoomMessage
@@ -71,7 +71,7 @@ func init() {
 
 func NewRoomsManager() *RoomsManager {
 	return &RoomsManager{
-		roomsMap:    make(map[uint64]*Room),
+		roomsMap:    make(map[string]*Room),
 		chJoin:      make(chan *dataChJoin),
 		chLeave:     make(chan *Client),
 		chBroadcast: make(chan RoomMessage),
@@ -311,7 +311,7 @@ func (room *Room) updateCanvas(ctx *gin.Context, msgIncoming RoomMessage) {
 
 		canvasData.BackgroundColor = incomingCanvasData.BackgroundColor
 
-		if auth_service.Auth(ctx) == room.Canvas.UserUuid {
+		if auth_service.Auth(ctx) == room.Canvas.UserId {
 			// Only canvas owner allowed:
 			canvasData.Name = incomingCanvasData.Name
 		}

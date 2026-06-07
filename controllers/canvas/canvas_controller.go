@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	database_config "qolboard-api/config/database"
-	controller "qolboard-api/controllers"
+	"qolboard-api/controllers"
 	model "qolboard-api/models"
 	canvas_model "qolboard-api/models/canvas"
 	service "qolboard-api/services"
@@ -15,22 +15,21 @@ import (
 	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
 	websocket_service "qolboard-api/services/websocket"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
 type getParams struct {
-	controller.GetParams
+	controllers.GetParams
 }
 
 type indexParams struct {
-	controller.IndexParams
+	controllers.IndexParams
 }
 
 func Index(c *gin.Context) {
 	var params indexParams = indexParams{
-		IndexParams: controller.IndexParams{
+		IndexParams: controllers.IndexParams{
 			Page:  1,
 			Limit: 100,
 			With:  make([]string, 0),
@@ -72,7 +71,7 @@ func Index(c *gin.Context) {
 
 func Get(c *gin.Context) {
 	var params getParams = getParams{
-		GetParams: controller.GetParams{
+		GetParams: controllers.GetParams{
 			With: make([]string, 0),
 		},
 	}
@@ -82,14 +81,7 @@ func Get(c *gin.Context) {
 		return
 	}
 
-	// claims := auth_service.GetClaims(c)
-
-	var paramId string = c.Param("canvas_id")
-	id, err := strconv.ParseUint(paramId, 10, 64)
-	if err != nil {
-		error_service.PublicError(c, "Canvas id must be a valid integer", http.StatusUnprocessableEntity, "id", paramId, "canvas")
-		return
-	}
+	var id string = c.Param("canvas_id")
 
 	tx, err := database_config.DB(c)
 	defer tx.Commit()
@@ -101,7 +93,7 @@ func Get(c *gin.Context) {
 
 	canvas, err := canvas_model.Get(tx, id)
 	if err != nil {
-		error_service.PublicError(c, "Could not find canvas", 404, "id", paramId, "canvas")
+		error_service.PublicError(c, "Could not find canvas", 404, "id", id, "canvas")
 		tx.Rollback()
 		return
 	}
@@ -121,16 +113,8 @@ func Get(c *gin.Context) {
 }
 
 func Save(c *gin.Context) {
-	var paramId string = c.Param("canvas_id")
-	var id uint64 = 0
+	var id string = c.Param("canvas_id")
 	var err error = nil
-	if paramId != "" {
-		id, err = strconv.ParseUint(paramId, 10, 64)
-		if err != nil {
-			error_service.PublicError(c, "Canvas id must be an integer", http.StatusUnprocessableEntity, "canvas_id", paramId, "canvas")
-			return
-		}
-	}
 
 	var canvasData canvas_service.CanvasData
 	if err := c.ShouldBindJSON(&canvasData); err != nil {
@@ -153,7 +137,7 @@ func Save(c *gin.Context) {
 
 	err = canvas.Save(tx)
 	if err != nil {
-		error_service.PublicError(c, "Canvas not found", http.StatusNotFound, "canvas_id", paramId, "canvas")
+		error_service.PublicError(c, "Canvas not found", http.StatusNotFound, "canvas_id", id, "canvas")
 		return
 	}
 
@@ -174,20 +158,12 @@ func Delete(c *gin.Context) {
 	claims := auth_service.GetClaims(c)
 	userUuid := claims.Subject
 
-	var paramId string = c.Param("canvas_id")
-	var id uint64 = 0
+	var id string = c.Param("canvas_id")
 	var err error = nil
-	if paramId != "" {
-		id, err = strconv.ParseUint(paramId, 10, 64)
-		if err != nil {
-			error_service.PublicError(c, "Canvas id must be an integer", http.StatusUnprocessableEntity, "canvas_id", paramId, "canvas")
-			return
-		}
-	}
 
 	canvas := model.Canvas{}
 	canvas.ID = id
-	canvas.UserUuid = userUuid
+	canvas.UserId = userUuid
 
 	tx, err := database_config.DB(c)
 	defer tx.Rollback()
@@ -198,7 +174,7 @@ func Delete(c *gin.Context) {
 
 	err = canvas.Delete(tx)
 	if err != nil {
-		error_service.PublicError(c, "Could not delete canvas", http.StatusNotFound, "canvas_id", paramId, "canvas")
+		error_service.PublicError(c, "Could not delete canvas", http.StatusNotFound, "canvas_id", id, "canvas")
 		return
 	}
 
@@ -216,7 +192,7 @@ func Websocket(c *gin.Context) {
 
 	// Parse query params
 	var params getParams = getParams{
-		GetParams: controller.GetParams{
+		GetParams: controllers.GetParams{
 			With: make([]string, 0),
 		},
 	}
@@ -227,16 +203,7 @@ func Websocket(c *gin.Context) {
 	}
 
 	// Validate canvas id param
-	var paramId string = c.Param("id")
-	var id uint64 = 0
-	if paramId != "" {
-		var err error
-		id, err = strconv.ParseUint(paramId, 10, 64)
-		if err != nil {
-			error_service.PublicError(c, "Canvas id must be an integer", http.StatusUnprocessableEntity, "canvas_id", paramId, "canvas")
-			return
-		}
-	}
+	var id string = c.Param("id")
 
 	tx, err := database_config.DB(c)
 	defer tx.Rollback()
@@ -248,7 +215,7 @@ func Websocket(c *gin.Context) {
 	// Validate user owns canvas or has access to canvas
 	canvas, err := canvas_model.Get(tx, id)
 	if err != nil {
-		error_service.PublicError(c, "Could not find canvas", http.StatusNotFound, "id", paramId, "canvas")
+		error_service.PublicError(c, "Could not find canvas", http.StatusNotFound, "id", id, "canvas")
 		return
 	}
 	tx.Commit()
