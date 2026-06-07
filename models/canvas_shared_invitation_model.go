@@ -13,8 +13,8 @@ import (
 type CanvasSharedInvitation struct {
 	Model
 	Code                 string               `json:"-" db:"code" gorm:"not null;index:,unique"`
-	CanvasId             uint64               `json:"canvas_id" db:"canvas_id" gorm:"not null"`
-	UserUuid             string               `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:id;type:uuid;not null;index"`
+	CanvasId             string               `json:"canvas_id" db:"canvas_id" gorm:"not null"`
+	UserId               string               `json:"user_id" db:"user_id" gorm:"foreignKey:UserUuid;references:id;type:uuid;not null;index"`
 	Canvas               *Canvas              `json:"canvas"`
 	User                 *User                `json:"user"`
 	CanvasSharedAccesses []CanvasSharedAccess `json:"canvas_shared_access"`
@@ -47,8 +47,8 @@ func init() {
 			csi.User = &u
 			return csi
 		},
-		func(csi CanvasSharedInvitation) any { return csi.UserUuid },
-		func(u User) any { return u.Uuid },
+		func(csi CanvasSharedInvitation) any { return csi.UserId },
+		func(u User) any { return u.Id },
 	)
 
 	relations_service.HasMany(
@@ -81,10 +81,10 @@ func (csi *CanvasSharedInvitation) Save(tx *sqlx.Tx) error {
 	now := time.Now()
 	var err error
 
-	if csi.ID > 0 {
-		err = tx.Get(csi, "UPDATE canvas_shared_invitations SET updated_at = $1 WHERE user_uuid = $2 AND id = $3 AND deleted_at IS NULL RETURNING *", now, csi.UserUuid, csi.ID)
+	if csi.ID != "" {
+		err = tx.Get(csi, "UPDATE canvas_shared_invitations SET updated_at = $1 WHERE user_id = $2 AND id = $3 AND deleted_at IS NULL RETURNING *", now, csi.UserId, csi.ID)
 	} else {
-		err = tx.Get(csi, "INSERT INTO canvas_shared_invitations(code, user_uuid, canvas_id, created_at, updated_at) VALUES($1, $2, $3, $4, $5) RETURNING *", csi.Code, csi.UserUuid, csi.CanvasId, now, now)
+		err = tx.Get(csi, "INSERT INTO canvas_shared_invitations(code, user_id, canvas_id, created_at, updated_at) VALUES($1, $2, $3, $4, $5) RETURNING *", csi.Code, csi.UserId, csi.CanvasId, now, now)
 	}
 
 	if err != nil {
@@ -96,7 +96,7 @@ func (csi *CanvasSharedInvitation) Save(tx *sqlx.Tx) error {
 
 func (csi *CanvasSharedInvitation) Delete(tx *sqlx.Tx) error {
 	now := time.Now()
-	err := tx.Get(csi, "UPDATE canvas_shared_invitations SET deleted_at = $1 WHERE id = $2 AND user_uuid = get_user_uuid() AND deleted_at IS NULL RETURNING *", now, csi.ID)
+	err := tx.Get(csi, "UPDATE canvas_shared_invitations SET deleted_at = $1 WHERE id = $2 AND user_id = get_user_uuid() AND deleted_at IS NULL RETURNING *", now, csi.ID)
 
 	return err
 }

@@ -14,13 +14,12 @@ import (
 	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
 	websocket_service "qolboard-api/services/websocket"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
 type IndexQuery struct {
-	CanvasId uint64   `form:"canvas_id"`
+	CanvasId string   `form:"canvas_id"`
 	Page     uint64   `form:"page"`
 	Limit    uint64   `form:"limit"`
 	With     []string `form:"with[]"`
@@ -29,16 +28,8 @@ type IndexQuery struct {
 func Create(c *gin.Context) {
 	var claims auth_service.Claims = *auth_service.GetClaims(c)
 
-	var paramCanvasId string = c.Param("canvas_id")
-	var canvasId uint64 = 0
+	var canvasId string = c.Param("canvas_id")
 	var err error = nil
-
-	// Parse params
-	canvasId, err = strconv.ParseUint(paramCanvasId, 10, 64)
-	if err != nil {
-		error_service.PublicError(c, "Canvas id must be a valid integer", http.StatusUnprocessableEntity, "canvas_id", paramCanvasId, "canvas")
-		return
-	}
 
 	var canvasSharedInvitation *model.CanvasSharedInvitation
 
@@ -114,12 +105,7 @@ func Index(c *gin.Context) {
 
 func Delete(c *gin.Context) {
 	// Parse id
-	paramId := c.Param("canvas_shared_invitation_id")
-	id, err := strconv.ParseUint(paramId, 10, 64)
-	if err != nil {
-		error_service.PublicError(c, "Must be a valid integer", http.StatusUnprocessableEntity, "id", paramId, "canvas_shared_invitation")
-		return
-	}
+	id := c.Param("canvas_shared_invitation_id")
 
 	tx, err := database_config.DB(c)
 	defer tx.Rollback()
@@ -133,7 +119,7 @@ func Delete(c *gin.Context) {
 
 	debug := model.CanvasSharedInvitation{}
 	debug.ID = id
-	tx.Get(&debug, "SELECT * FROM canvas_shared_invitations WHERE id = $1 AND user_uuid = get_user_uuid() AND deleted_at IS NULL", id)
+	tx.Get(&debug, "SELECT * FROM canvas_shared_invitations WHERE id = $1 AND user_id = get_user_uuid() AND deleted_at IS NULL", id)
 	logging.LogDebug("canvas_shared_invitation_controller", "Finding the csi", debug)
 
 	err = csi.Delete(tx)
@@ -153,15 +139,8 @@ func Delete(c *gin.Context) {
 func AcceptInvite(c *gin.Context) {
 	claims := auth_service.GetClaims(c)
 
-	paramCanvasId := c.Param("canvas_id")
+	canvasId := c.Param("canvas_id")
 	paramCode := c.Param("code")
-
-	// Parse & validate params
-	canvasId, err := strconv.ParseUint(paramCanvasId, 10, 64)
-	if err != nil {
-		error_service.PublicError(c, "Must be a valid integer", http.StatusUnprocessableEntity, "id", paramCanvasId, "canvas")
-		return
-	}
 
 	// Find shared invitation by code and canvas id
 	tx, err := database_config.DB(c)
@@ -178,10 +157,10 @@ func AcceptInvite(c *gin.Context) {
 	}
 
 	// Check to ensure we do not create a "shared access" for the canvas owner
-	if csi.UserUuid != claims.Subject {
+	if csi.UserId != claims.Subject {
 		// Create shared access
 		var csa model.CanvasSharedAccess = model.CanvasSharedAccess{
-			UserUuid:                 claims.Subject,
+			UserId:                   claims.Subject,
 			CanvasId:                 canvasId,
 			CanvasSharedInvitationId: csi.ID,
 		}

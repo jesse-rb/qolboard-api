@@ -97,7 +97,7 @@ func IssueJWT(user model.User) (string, error) {
 	claims := &Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    iss,
-			Subject:   user.Uuid,
+			Subject:   user.Id,
 			IssuedAt:  iat,
 			ExpiresAt: exp,
 		},

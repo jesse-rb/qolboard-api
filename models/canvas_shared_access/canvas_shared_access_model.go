@@ -16,7 +16,7 @@ func GetAll(tx *sqlx.Tx, limit int, page int) ([]model.CanvasSharedAccess, error
 		`
 SELECT *
 FROM canvas_shared_accesses
-WHERE user_uuid = get_user_uuid()
+WHERE user_id = get_user_uuid()
 AND deleted_at IS NULL
 LIMIT $1
 OFFSET $2

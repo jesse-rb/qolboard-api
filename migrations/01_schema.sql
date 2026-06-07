@@ -45,34 +45,34 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
 -- canvases table
 --
 CREATE TABLE IF NOT EXISTS "public"."canvases" (
-    "id" bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     "created_at" timestamp NOT NULL,
     "updated_at" timestamp NOT NULL,
     "deleted_at" timestamp DEFAULT NULL,
-    "user_uuid" "uuid" NOT NULL REFERENCES "public"."users",
+    "user_id" "uuid" NOT NULL REFERENCES "public"."users",
     "canvas_data" "jsonb"
 );
 
 -- canvas_shared_invitations table
 CREATE TABLE IF NOT EXISTS "public"."canvas_shared_invitations" (
-    "id" bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     "created_at" timestamp,
     "updated_at" timestamp,
     "deleted_at" timestamp,
     "code" "text" NOT NULL,
-    "canvas_id" bigint NOT NULL REFERENCES "public"."canvases",
-    "user_uuid" "uuid" NOT NULL REFERENCES "public"."users"
+    "canvas_id" "uuid" NOT NULL REFERENCES "public"."canvases",
+    "user_id" "uuid" NOT NULL REFERENCES "public"."users"
 );
 
 -- canvas_shared_accesses table
 CREATE TABLE IF NOT EXISTS "public"."canvas_shared_accesses" (
-    "id" bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     "created_at" timestamp,
     "updated_at" timestamp,
     "deleted_at" timestamp,
-    "user_uuid" "uuid" NOT NULL REFERENCES "public"."users",
-    "canvas_id" bigint NOT NULL REFERENCES "public"."canvases",
-    "canvas_shared_invitation_id" bigint NOT NULL REFERENCES "public"."canvas_shared_invitations"
+    "user_id" "uuid" NOT NULL REFERENCES "public"."users",
+    "canvas_id" "uuid" NOT NULL REFERENCES "public"."canvases",
+    "canvas_shared_invitation_id" "uuid" NOT NULL REFERENCES "public"."canvas_shared_invitations"
 );
 
 -- +goose down

@@ -2,7 +2,6 @@ package canvas_shared_access_controller
 
 import (
 	"fmt"
-	"net/http"
 	database_config "qolboard-api/config/database"
 	"qolboard-api/controllers"
 	model "qolboard-api/models"
@@ -10,7 +9,6 @@ import (
 	error_service "qolboard-api/services/error"
 	relations_service "qolboard-api/services/relations"
 	response_service "qolboard-api/services/response"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -63,12 +61,7 @@ func Index(c *gin.Context) {
 
 func Delete(c *gin.Context) {
 	// Parse id
-	paramId := c.Param("canvas_shared_access_id")
-	id, err := strconv.ParseUint(paramId, 10, 64)
-	if err != nil {
-		error_service.PublicError(c, "Must be a valid integer", http.StatusUnprocessableEntity, "id", paramId, "canvas_shared_access")
-		return
-	}
+	id := c.Param("canvas_shared_access_id")
 
 	tx, err := database_config.DB(c)
 	defer tx.Rollback()

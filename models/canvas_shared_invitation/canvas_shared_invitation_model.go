@@ -7,20 +7,20 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-func NewCanvasSharedInvitation(userUuid string, canvasId uint64) (*model.CanvasSharedInvitation, error) {
+func NewCanvasSharedInvitation(userId string, canvasId string) (*model.CanvasSharedInvitation, error) {
 	code, err := service.GenerateCode(256)
 	if err != nil {
 		return nil, err
 	}
 
 	return &model.CanvasSharedInvitation{
-		UserUuid: userUuid,
+		UserId:   userId,
 		CanvasId: canvasId,
 		Code:     code,
 	}, nil
 }
 
-func GetByCode(tx *sqlx.Tx, canvasId uint64, code string) (model.CanvasSharedInvitation, error) {
+func GetByCode(tx *sqlx.Tx, canvasId string, code string) (model.CanvasSharedInvitation, error) {
 	csi := model.CanvasSharedInvitation{}
 	err := tx.Get(&csi, `
 SELECT *
@@ -32,7 +32,7 @@ AND csi.code = $2
 	return csi, err
 }
 
-func GetAllForCanvas(tx *sqlx.Tx, canvasId uint64) ([]model.CanvasSharedInvitation, error) {
+func GetAllForCanvas(tx *sqlx.Tx, canvasId string) ([]model.CanvasSharedInvitation, error) {
 	var canvasSharedInvitiations []model.CanvasSharedInvitation
 	err := tx.Select(&canvasSharedInvitiations, "SELECT * FROM canvas_shared_invitations csi WHERE canvas_id = $1 AND deleted_at IS NULL", canvasId)
 	if err != nil {

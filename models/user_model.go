@@ -11,7 +11,7 @@ import (
 )
 
 type User struct {
-	Uuid                     string               `json:"uuid" gorm:"column:id;primaryKey;type:uuid" db:"id"`
+	Id                       string               `json:"id" db:"id"`
 	Email                    string               `json:"email" db:"email"`
 	EmailVerificationCode    *string              `json:"email_verification_code" db:"email_verification_code"`
 	EmailVerificationCodeIAT *time.Time           `json:"email_verification_code_iat" db:"email_verification_code_iat"`
@@ -32,7 +32,7 @@ func (u User) GetRelations() relations_service.RelationRegistry {
 }
 
 func (u User) GetPrimaryKey() any {
-	return u.Uuid
+	return u.Id
 }
 
 func (u User) GetForeignKey(related relations_service.IHasRelations) any {
@@ -45,32 +45,32 @@ func init() {
 	relations_service.HasMany(
 		"canvases",
 		UserRelations,
-		"SELECT * FROM canvases WHERE user_uuid = $1 AND deleted_at IS NULL",
-		"SELECT * FROM canvases WHERE user_uuid IN (?) AND deleted_at IS NULL",
+		"SELECT * FROM canvases WHERE user_id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvases WHERE user_id IN (?) AND deleted_at IS NULL",
 		func(u User, c []Canvas) User { u.Canvases = c; return u },
-		func(u User) any { return u.Uuid },
-		func(c Canvas) any { return c.UserUuid },
+		func(u User) any { return u.Id },
+		func(c Canvas) any { return c.UserId },
 	)
 
 	relations_service.HasMany(
 		"canvas_shared_accesses",
 		UserRelations,
-		"SELECT * FROM canvas_shared_accesses WHERE user_uuid = $1 AND deleted_at IS NULL",
-		"SELECT * FROM canvas_shared_accesses WHERE user_uuid IN (?) AND deleted_at IS NULL",
+		"SELECT * FROM canvas_shared_accesses WHERE user_id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM canvas_shared_accesses WHERE user_id IN (?) AND deleted_at IS NULL",
 		func(u User, csa []CanvasSharedAccess) User {
 			u.CanvasSharedAccesses = csa
 			return u
 		},
-		func(u User) any { return u.Uuid },
+		func(u User) any { return u.Id },
 		func(csa CanvasSharedAccess) any {
-			return csa.UserUuid
+			return csa.UserId
 		},
 	)
 }
 
 func (u User) Response() map[string]any {
 	r := map[string]any{
-		"uuid":                   u.Uuid,
+		"uuid":                   u.Id,
 		"email":                  u.Email,
 		"canvases":               u.Canvases,
 		"canvas_shared_accesses": u.CanvasSharedAccesses,
@@ -89,7 +89,7 @@ func (u *User) Create(tx *sqlx.Tx) error {
 }
 
 func (u *User) Update(tx *sqlx.Tx, fieldsToUpdate []string) error {
-	if u.Uuid == "" {
+	if u.Id == "" {
 		return fmt.Errorf("user UUID not set")
 	}
 	if len(fieldsToUpdate) < 1 {
@@ -126,7 +126,7 @@ func (u *User) Update(tx *sqlx.Tx, fieldsToUpdate []string) error {
 		}
 	}
 
-	params = append(params, u.Uuid)
+	params = append(params, u.Id)
 	fmt.Fprintf(&builder, " WHERE id = $%d RETURNING *;", len(params))
 
 	err := tx.Get(u, builder.String(), params...)

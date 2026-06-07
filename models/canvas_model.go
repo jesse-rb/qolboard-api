@@ -14,7 +14,7 @@ import (
 
 type Canvas struct {
 	Model
-	UserUuid                string                    `json:"user_uuid" db:"user_uuid" gorm:"foreignKey:UserUuid;references:Uuid;type:uuid;not null;index"`
+	UserId                  string                    `json:"user_id" db:"user_id"`
 	CanvasData              canvas_service.CanvasData `json:"canvas_data" db:"canvas_data"`
 	CanvasSharedAccesses    []CanvasSharedAccess      `json:"canvas_shared_accesses"`
 	CanvasSharedInvitations []CanvasSharedInvitation  `json:"canvas_shared_invitations"`
@@ -39,8 +39,8 @@ func init() {
 		"SELECT * FROM users WHERE id = $1",
 		"SELECT * FROM users WHERE id IN (?)",
 		func(c Canvas, u User) Canvas { c.User = &u; return c },
-		func(c Canvas) any { return c.UserUuid },
-		func(u User) any { return u.Uuid },
+		func(c Canvas) any { return c.UserId },
+		func(u User) any { return u.Id },
 	)
 
 	// Has many CanvasSharedInvitations
@@ -94,7 +94,7 @@ func (c *Canvas) Save(tx *sqlx.Tx) error {
 		return err
 	}
 
-	if c.ID > 0 {
+	if c.ID != "" {
 		err = tx.Get(c, fmt.Sprintf(`
 UPDATE canvases c
 SET canvas_data = $1, updated_at = $2
@@ -104,7 +104,7 @@ AND deleted_at IS NULL
 RETURNING *
 		`, SqlHasAccessToCanvas("c")), string(canvasDataBytes), now, c.ID)
 	} else {
-		err = tx.Get(c, "INSERT INTO canvases(canvas_data, created_at, updated_at, user_uuid) VALUES($1, $2, $3, get_user_uuid()) RETURNING *", string(canvasDataBytes), now, now)
+		err = tx.Get(c, "INSERT INTO canvases(canvas_data, created_at, updated_at, user_id) VALUES($1, $2, $3, get_user_uuid()) RETURNING *", string(canvasDataBytes), now, now)
 	}
 
 	if err != nil {
@@ -118,7 +118,7 @@ RETURNING *
 func (c *Canvas) Delete(tx *sqlx.Tx) error {
 	now := time.Now()
 
-	err := tx.Get(c, "UPDATE canvases SET deleted_at = $1 WHERE id = $2 AND user_uuid = get_user_uuid() AND deleted_at IS NULL RETURNING *", now, c.ID)
+	err := tx.Get(c, "UPDATE canvases SET deleted_at = $1 WHERE id = $2 AND user_id = get_user_uuid() AND deleted_at IS NULL RETURNING *", now, c.ID)
 	if err != nil {
 		logging.LogError("[model]", "Error deleting canvas", err)
 		return err
@@ -147,11 +147,11 @@ func (c Canvas) Response() map[string]any {
 func SqlHasAccessToCanvas(aliasCanvas string) string {
 	sql := fmt.Sprintf(`
 (
-	%s.user_uuid = get_user_uuid()
+	%s.user_id = get_user_uuid()
 	OR EXISTS (
 		SELECT csa.id
 		FROM canvas_shared_accesses csa
-		WHERE csa.user_uuid = get_user_uuid()
+		WHERE csa.user_id = get_user_uuid()
 		AND csa.canvas_id = %s.id
 		AND csa.deleted_at IS NULL
 	)
