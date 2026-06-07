@@ -37,6 +37,8 @@ func init() {
 }
 
 func main() {
+	gin.SetMode(os.Getenv("GIN_MODE"))
+
 	ctx := context.Background()
 
 	// Setup email client
