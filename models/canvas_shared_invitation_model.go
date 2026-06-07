@@ -12,9 +12,9 @@ import (
 
 type CanvasSharedInvitation struct {
 	Model
-	Code                 string               `json:"-" db:"code" gorm:"not null;index:,unique"`
-	CanvasId             string               `json:"canvas_id" db:"canvas_id" gorm:"not null"`
-	UserId               string               `json:"user_id" db:"user_id" gorm:"foreignKey:UserUuid;references:id;type:uuid;not null;index"`
+	Code                 string               `json:"-" db:"code"`
+	CanvasId             string               `json:"canvas_id" db:"canvas_id"`
+	UserId               string               `json:"user_id" db:"user_id"`
 	Canvas               *Canvas              `json:"canvas"`
 	User                 *User                `json:"user"`
 	CanvasSharedAccesses []CanvasSharedAccess `json:"canvas_shared_access"`

@@ -70,7 +70,7 @@ func init() {
 
 func (u User) Response() map[string]any {
 	r := map[string]any{
-		"uuid":                   u.Id,
+		"id":                     u.Id,
 		"email":                  u.Email,
 		"canvases":               u.Canvases,
 		"canvas_shared_accesses": u.CanvasSharedAccesses,
