@@ -58,14 +58,18 @@ func ConnectToDatabase() {
 	port := os.Getenv("DB_PORT")
 	username := os.Getenv("DB_USERNAME")
 	password := os.Getenv("DB_PASSWORD")
+	sslMode := os.Getenv("DB_SSLMODE")
+	channelBinding := os.Getenv("DB_CHANNELBINDING")
 
 	dsn := fmt.Sprintf(
-		"host=%s user=%s dbname=%s password=%s port=%s",
+		"host=%s user=%s dbname=%s password=%s port=%s sslMode=%s channelBinding=%s",
 		host,
 		username,
 		name,
 		password,
 		port,
+		sslMode,
+		channelBinding,
 	)
 
 	db, err = sqlx.Open("pgx", dsn)
