@@ -2,6 +2,7 @@ package user_model
 
 import (
 	"fmt"
+	"qolboard-api/config"
 	model "qolboard-api/models"
 	"time"
 
@@ -30,7 +31,7 @@ func GetByEmail(tx *sqlx.Tx, email string) (*model.User, error) {
 
 func GetByEmailVerificationCode(tx *sqlx.Tx, emailVerificationCode string) (*model.User, error) {
 	user := &model.User{}
-	expiredThreshold := time.Now().Add(-1 * time.Hour)
+	expiredThreshold := time.Now().Add(config.TTLEmailVerificationToken())
 
 	err := tx.Get(user, "SELECT * FROM users u WHERE u.email_verification_code = $1 AND u.verified_at IS NULL AND u.email_verification_code_iat > $2", emailVerificationCode, expiredThreshold)
 	if err != nil {

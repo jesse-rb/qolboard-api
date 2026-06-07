@@ -9,10 +9,22 @@ func IsDev() bool {
 	return os.Getenv("ENV") == "dev"
 }
 
-func LoginOTPTTL() time.Duration {
+func TTLJWTToken() time.Duration {
+	return 15 * time.Minute
+}
+
+func TTLLoginOTP() time.Duration {
 	return 5 * time.Minute
 }
 
-func JWTTTL() time.Duration {
-	return time.Minute * 15
+func TTLEmailVerificationToken() time.Duration {
+	return 24 * time.Hour
+}
+
+func RateLimitRegister() time.Duration {
+	return time.Minute
+}
+
+func RateLimitRequestOTP() time.Duration {
+	return time.Minute
 }

@@ -73,10 +73,9 @@ func main() {
 	rAuth := r.Group("/auth")
 	{
 		rAuth.POST("/register", restHandler.Register)
-		rAuth.POST("/verify", restHandler.VerifyEmail)
+		rAuth.GET("/verify", restHandler.VerifyEmail)
 		rAuth.POST("/request_otp", restHandler.RequestOTP)
 		rAuth.POST("/login", restHandler.Login)
-		// rAuth.POST("/resend_verification_email", restHandler.ResendVerificationEmail)
 	}
 
 	// Define authenticated routes

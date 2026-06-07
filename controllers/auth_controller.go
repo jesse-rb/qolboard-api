@@ -51,7 +51,7 @@ func (h *RESTHandler) Register(c *gin.Context) {
 	}
 
 	if user != nil && user.VerifiedAt != nil {
-		error_service.PublicError(c, "a user with this email is already registered", http.StatusBadRequest, "email", data.Email, "user")
+		error_service.PublicError(c, "a user with this email is already registered", http.StatusConflict, "email", data.Email, "user")
 		return
 	}
 
@@ -66,11 +66,11 @@ func (h *RESTHandler) Register(c *gin.Context) {
 	iat := time.Now()
 
 	if user != nil {
-		thresholdUnix := time.Now().Unix() - 60
+		thresholdUnix := time.Now().Unix() - int64(config.RateLimitRegister().Seconds())
 		logging.LogDebug("DEBUG", "", map[string]any{"email verified": user.EmailVerificationCodeIAT})
 		if user.EmailVerificationCodeIAT != nil && user.EmailVerificationCodeIAT.Unix() > thresholdUnix {
 			// Not enough time has passed since the last verification email, abort, we want to be extra careful to never accidentally spam anyone, ever!
-			error_service.PublicError(c, "too soon, please wait 1 minute between retries", http.StatusTooManyRequests, "email", data.Email, "user")
+			error_service.PublicError(c, fmt.Sprintf("too soon, please wait %s between retries", config.RateLimitRegister().String()), http.StatusTooManyRequests, "email", data.Email, "user")
 			return
 		}
 
@@ -173,12 +173,13 @@ func (h *RESTHandler) VerifyEmail(c *gin.Context) {
 	token, err := auth_service.IssueJWT(*user)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
+		return
 	}
-	auth_service.SetAuthCookie(c, token, int(config.JWTTTL()))
+	auth_service.SetAuthCookie(c, token, int(config.TTLJWTToken()))
 
-	// Redirect to /user
+	// Redirect
 	appHost := os.Getenv("APP_HOST")
-	locatoin := fmt.Sprintf("%s/user", appHost)
+	locatoin := fmt.Sprintf("%s/canvas", appHost)
 	c.Redirect(http.StatusFound, locatoin)
 }
 
@@ -223,8 +224,8 @@ func (h *RESTHandler) RequestOTP(c *gin.Context) {
 	}
 
 	now := time.Now()
-	if user.LoginOTPIAT != nil && user.LoginOTPIAT.Add(5*time.Minute).After(now) {
-		error_service.PublicError(c, "too soon", http.StatusTooManyRequests, "email", data.Email, "user")
+	if user.LoginOTPIAT != nil && user.LoginOTPIAT.Add(config.RateLimitRequestOTP()).After(now) {
+		error_service.PublicError(c, fmt.Sprintf("too soon, please wait %s between retries", config.RateLimitRequestOTP().String()), http.StatusTooManyRequests, "email", data.Email, "user")
 	}
 
 	// Generate OTP
@@ -304,7 +305,7 @@ func (h *RESTHandler) Login(c *gin.Context) {
 
 	// Verify hashed OTP match
 	now := time.Now()
-	if !(user.LoginOTP != nil && user.LoginOTPIAT != nil && user.LoginOTPIAT.Add(config.LoginOTPTTL()).After(now) && *user.LoginOTP == hashed) {
+	if !(user.LoginOTP != nil && user.LoginOTPIAT != nil && user.LoginOTPIAT.Add(config.TTLLoginOTP()).After(now) && *user.LoginOTP == hashed) {
 		error_service.PublicError(c, "invalid opt", http.StatusUnauthorized, "otp", data.OTP, "user")
 		return
 	}
@@ -318,6 +319,13 @@ func (h *RESTHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// If all went well, commit tx
+	err = tx.Commit()
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
 	// Issue JWT token
 	token, err := auth_service.IssueJWT(*user)
 	if err != nil {
@@ -326,11 +334,11 @@ func (h *RESTHandler) Login(c *gin.Context) {
 	}
 
 	// Set token
-	auth_service.SetAuthCookie(c, token, int(config.JWTTTL().Seconds()))
+	auth_service.SetAuthCookie(c, token, int(config.TTLJWTToken().Seconds()))
 
-	// Redirect to /user
+	// Redirect to
 	appHost := os.Getenv("APP_HOST")
-	locatoin := fmt.Sprintf("%s/user", appHost)
+	locatoin := fmt.Sprintf("%s/canvas", appHost)
 	c.Redirect(http.StatusFound, locatoin)
 }
 

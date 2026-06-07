@@ -93,7 +93,7 @@ func IssueJWT(user model.User) (string, error) {
 	iss := os.Getenv("API_HOST")
 	now := time.Now()
 	iat := jwt.NewNumericDate(now)
-	exp := jwt.NewNumericDate(now.Add(config.JWTTTL())) // JWT expires in 15 minutes from now
+	exp := jwt.NewNumericDate(now.Add(config.TTLJWTToken())) // JWT expires in 15 minutes from now
 	claims := &Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    iss,
