@@ -22,9 +22,9 @@ func TTLEmailVerificationToken() time.Duration {
 }
 
 func RateLimitRegister() time.Duration {
-	return time.Minute
+	return 24 * time.Hour
 }
 
 func RateLimitRequestOTP() time.Duration {
-	return time.Minute
+	return 15 * time.Minute
 }

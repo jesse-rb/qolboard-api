@@ -2,11 +2,16 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"os"
+	"os/signal"
 	"qolboard-api/config"
 	"qolboard-api/controllers"
 	"qolboard-api/services/email"
 	"qolboard-api/services/logging"
+	"syscall"
+	"time"
 
 	database_config "qolboard-api/config/database"
 	canvas_controller "qolboard-api/controllers/canvas"
@@ -16,6 +21,7 @@ import (
 	auth_middleware "qolboard-api/middleware/auth"
 	cors_middleware "qolboard-api/middleware/cors"
 	error_middleware "qolboard-api/middleware/error"
+	rate_limiting_middleware "qolboard-api/middleware/rate_limiting"
 	response_middleware "qolboard-api/middleware/response"
 	error_service "qolboard-api/services/error"
 
@@ -39,7 +45,9 @@ func init() {
 func main() {
 	gin.SetMode(os.Getenv("GIN_MODE"))
 
-	ctx := context.Background()
+	// Create context that listens for the interrupt signal from the OS.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	// Setup email client
 	fromEmail := "info@qolboard.com"
@@ -65,11 +73,16 @@ func main() {
 
 	// Runs before
 	r.Use(cors_middleware.Run)
+	r.Use(rate_limiting_middleware.RunRateLimitIP(ctx))
 
 	// Runs after (define in reverse)
 	r.Use(response_middleware.Run)
 	r.Use(error_middleware.Run)
 
+	// Handle unregistered routes or methods
+	r.NoRoute(func(c *gin.Context) {
+		c.AbortWithError(404, fmt.Errorf("not found"))
+	})
 	// Define unauthenticated routes routes
 	// Auth routes
 	rAuth := r.Group("/auth")
@@ -86,6 +99,7 @@ func main() {
 	{
 		// User middleware
 		rUser.Use(auth_middleware.Run)
+		rUser.Use(rate_limiting_middleware.RunRateLimitUser(ctx))
 
 		rUser.GET("", user_controller.Get)
 		rUser.POST("/logout", restHandler.Logout)
@@ -109,17 +123,43 @@ func main() {
 		rUser.GET("/ws/canvas/:id", canvas_controller.Websocket)
 	}
 
+	srv := &http.Server{
+		Addr:    fmt.Sprintf(":%s", os.Getenv("PORT")),
+		Handler: r,
+	}
+
 	// Listen and serve router
 	logging.LogInfo("main", "Running server", 0)
 
-	var err error
-	if config.IsDev() {
-		err = r.Run()
-	} else {
-		err = autotls.Run(r, os.Getenv("API_DOMAIN"))
+	// Initializing the server in a goroutine so that it won't block the graceful shutdown handling below
+	go func() {
+		var err error
+		if config.IsDev() {
+			// err = r.Run()
+			err = srv.ListenAndServe()
+		} else {
+			// err = autotls.Run(r, os.Getenv("API_DOMAIN"))
+			err = autotls.Run(srv.Handler, os.Getenv("API_DOMAIN"))
+		}
+		if err != nil && err != http.ErrServerClosed {
+			logging.LogError("main", "Error running server", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Listen for the interrupt signal.
+	<-ctx.Done()
+
+	// Restore default behavior on the interrupt signal and notify user of shutdown.
+	stop()
+	logging.LogInfo("main", "shutting down gracefully, press Ctrl+C again to force", nil)
+
+	// The context is used to inform the server it now has a timeout to finish any processing/handling
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		logging.LogInfo("main", "server shutdown", err)
 	}
-	if err != nil {
-		logging.LogError("main", "Error running server", err)
-		os.Exit(1)
-	}
+
+	logging.LogInfo("main", "server finished, exiting", nil)
 }
