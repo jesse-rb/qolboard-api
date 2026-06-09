@@ -1,7 +1,6 @@
 package database_config
 
 import (
-	"context"
 	"fmt"
 	"os"
 	auth_service "qolboard-api/services/auth"
@@ -17,19 +16,8 @@ var (
 	dbPriv *sqlx.DB
 )
 
-func debugCurrentUser() {
-	ctx := context.Background()
-	var currentUser string
-	if err := db.QueryRowContext(ctx, "SELECT current_user").Scan(&currentUser); err != nil {
-		logging.LogError("database_config", "failed to get current user: %v", err)
-	} else {
-		logging.LogInfo("database_config", "current_user", currentUser)
-	}
-}
-
 // If c is not null, get_user_uuid() postgres function will be available to get the authenticated user UUID
 func DB(c *gin.Context) (*sqlx.Tx, error) {
-	debugCurrentUser()
 	return beginDbTransaction(c)
 }
 
