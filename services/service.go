@@ -4,8 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"qolboard-api/config"
 	"qolboard-api/services/logging"
 )
+
+var isDev bool = config.IsDev()
 
 func ToPointer[T any](v T) *T {
 	return &v

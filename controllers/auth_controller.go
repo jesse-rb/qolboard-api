@@ -170,12 +170,19 @@ func (h *RESTHandler) VerifyEmail(c *gin.Context) {
 	}
 
 	// If email has been verified, we can log the user in automatically
-	token, err := auth_service.IssueJWT(*user)
+	jwt_token, err := auth_service.IssueJWT(*user)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}
-	auth_service.SetAuthCookie(c, token, int(config.TTLJWTToken()))
+	// refresh_token, err := auth_service.IssueRefreshToken(*user)
+	// if err != nil {
+	// 	error_service.InternalError(c, err.Error())
+	// 	return
+	// }
+
+	auth_service.SetJWTCookie(c, jwt_token, int(config.TTLJWTToken().Seconds()))
+	// auth_service.SetRefreshTokenCookie(c, refresh_token, int(config.TTLRefreshToken().Seconds()))
 
 	// Redirect
 	appHost := os.Getenv("APP_HOST")
@@ -334,7 +341,7 @@ func (h *RESTHandler) Login(c *gin.Context) {
 	}
 
 	// Set token
-	auth_service.SetAuthCookie(c, token, int(config.TTLJWTToken().Seconds()))
+	auth_service.SetJWTCookie(c, token, int(config.TTLJWTToken().Seconds()))
 
 	// Redirect to
 	appHost := os.Getenv("APP_HOST")

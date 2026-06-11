@@ -2,20 +2,15 @@ package auth_service
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"qolboard-api/config"
 	model "qolboard-api/models"
+	service "qolboard-api/services"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-)
-
-var (
-	domain string = os.Getenv("APP_DOMAIN")
-	secure bool   = true
-	isDev  bool   = config.IsDev()
+	"github.com/jmoiron/sqlx"
 )
 
 type Claims struct {
@@ -45,20 +40,20 @@ func Auth(c *gin.Context) string {
 	return claims.Subject
 }
 
-func SetAuthCookie(c *gin.Context, token string, expiresIn int) {
-	if isDev {
-		secure = false
-		c.SetSameSite(http.SameSiteLaxMode)
-	}
-	c.SetCookie("qolboard_jwt", token, expiresIn, "/", domain, secure, true)
+func SetJWTCookie(c *gin.Context, token string, expiresIn int) {
+	service.SetCookie(c, "qolboard_jwt", token, expiresIn, "/")
 }
 
-func ExpireAuthCookie(c *gin.Context) {
-	if isDev {
-		secure = false
-		c.SetSameSite(http.SameSiteLaxMode)
-	}
-	c.SetCookie("qolboard_jwt", "", 0, "/", domain, secure, true) // Expire jwt cookie
+func ExrireJWTCookie(c *gin.Context) {
+	service.SetCookie(c, "qolboard_jwt", "", 0, "/") // Expire jwt cookie
+}
+
+func SetRefreshTokenCookie(c *gin.Context, token string, expiresIn int) {
+	service.SetCookie(c, "qolboard_refresh_token", token, expiresIn, "/")
+}
+
+func ExrireRefreshTokenCookie(c *gin.Context) {
+	service.SetCookie(c, "qolboard_refresh_token", "", 0, "/") // Expire refresh token cookie
 }
 
 func ParseJWT(token string) (*Claims, error) {
