@@ -3,16 +3,19 @@ package model
 import (
 	"fmt"
 	relations_service "qolboard-api/services/relations"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 )
 
 type UserRefreshToken struct {
-	ID           string  `json:"id" db:"id"`
-	UserID       string  `json:"user_id" db:"user_id"`
-	RefreshToken *string `json:"refresh_token" db:"refresh_token"`
-	CreatedAt    string  `json:"created_at" db:"created_at"`
-	User         User    `json:"user"`
+	ID           string     `json:"id" db:"id"`
+	UserID       string     `json:"user_id" db:"user_id"`
+	RefreshToken string     `json:"refresh_token" db:"refresh_token"`
+	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
+	DeletedAt    *time.Time `json:"deleted_at" db:"deleted_at"`
+	User         *User      `json:"user"`
 }
 
 var UserRefreshTokenRelations = relations_service.NewRelationRegistry()
@@ -37,7 +40,7 @@ func init() {
 		UserRefreshTokenRelations,
 		"SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL",
 		"SELECT * FROM users WHERE id IN (?) AND deleted_at IS NULL",
-		func(urt UserRefreshToken, u User) UserRefreshToken { urt.User = u; return urt },
+		func(urt UserRefreshToken, u User) UserRefreshToken { urt.User = &u; return urt },
 		func(urt UserRefreshToken) any { return urt.ID },
 		func(u User) any { return u.Id },
 	)
@@ -49,7 +52,7 @@ func (urt UserRefreshToken) Response() map[string]any {
 }
 
 func (urt *UserRefreshToken) Create(tx *sqlx.Tx) error {
-	err := tx.Get(urt, "INSERT INTO user_refresh_tokens(user_id, refresh_token, created_at) VALUES($1, $2, $3) RETURNING *", urt.UserID, urt.RefreshToken, urt.CreatedAt)
+	err := tx.Get(urt, "INSERT INTO user_refresh_tokens(user_id, refresh_token) VALUES($1, $2) RETURNING *", urt.UserID, urt.RefreshToken)
 	if err != nil {
 		return fmt.Errorf("failed to create user refresh token: %w", err)
 	}
@@ -57,11 +60,19 @@ func (urt *UserRefreshToken) Create(tx *sqlx.Tx) error {
 	return nil
 }
 
-func (urt *UserRefreshToken) Delete(tx *sqlx.Tx) error {
-	err := tx.Get(urt, "UPDATE user_refresh_tokens SET deleted_at = NOW() WHERE id = $2 RETURNING *", urt.ID)
+func (urt *UserRefreshToken) DeleteByRefreshToken(tx *sqlx.Tx) error {
+	err := tx.Get(urt, "UPDATE user_refresh_tokens SET deleted_at = NOW() WHERE refresh_token = $1 AND user_id = $2 RETURNING *", urt.RefreshToken, urt.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to create user refresh token: %w", err)
 	}
 
+	return nil
+}
+
+func (urt *UserRefreshToken) FindByRefreshToken(tx *sqlx.Tx) error {
+	err := tx.Get(urt, "SELECT * FROM user_refresh_tokens WHERE refresh_token = $1 AND user_id = $2 AND deleted_at IS NULL")
+	if err != nil {
+		return fmt.Errorf("failed to find user refresh token: %w", err)
+	}
 	return nil
 }

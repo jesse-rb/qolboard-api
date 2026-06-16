@@ -170,19 +170,19 @@ func (h *RESTHandler) VerifyEmail(c *gin.Context) {
 	}
 
 	// If email has been verified, we can log the user in automatically
-	jwt_token, err := auth_service.IssueJWT(*user)
+	jwt_token, err := auth_service.IssueJWT(user.Id)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}
-	// refresh_token, err := auth_service.IssueRefreshToken(*user)
-	// if err != nil {
-	// 	error_service.InternalError(c, err.Error())
-	// 	return
-	// }
+	refresh_token, err := auth_service.IssueRefreshToken(tx, user.Id)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
 
 	auth_service.SetJWTCookie(c, jwt_token, int(config.TTLJWTToken().Seconds()))
-	// auth_service.SetRefreshTokenCookie(c, refresh_token, int(config.TTLRefreshToken().Seconds()))
+	auth_service.SetRefreshTokenCookie(c, refresh_token, int(config.TTLRefreshToken().Seconds()))
 
 	// Redirect
 	appHost := os.Getenv("APP_HOST")
@@ -208,7 +208,6 @@ func (h *RESTHandler) RequestOTP(c *gin.Context) {
 		error_service.InternalError(c, err.Error())
 		return
 	}
-
 	defer database.StandardDeferRollback(tx)
 
 	// Get user by email
@@ -289,10 +288,10 @@ func (h *RESTHandler) Login(c *gin.Context) {
 
 	// Start tx
 	tx, err := database_config.DB(nil)
-	if err != nil || tx == nil {
+	defer database.StandardDeferRollback(tx)
+	if err != nil {
 		error_service.InternalError(c, err.Error())
 	}
-	defer database.StandardDeferRollback(tx)
 
 	// Get user by email
 	user, err := user_model.GetByEmail(tx, data.Email)
@@ -326,6 +325,18 @@ func (h *RESTHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// Issue JWT token
+	token, err := auth_service.IssueJWT(user.Id)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+	refresh_token, err := auth_service.IssueRefreshToken(tx, user.Id)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
 	// If all went well, commit tx
 	err = tx.Commit()
 	if err != nil {
@@ -333,12 +344,7 @@ func (h *RESTHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Issue JWT token
-	token, err := auth_service.IssueJWT(*user)
-	if err != nil {
-		error_service.InternalError(c, err.Error())
-		return
-	}
+	auth_service.SetRefreshTokenCookie(c, refresh_token, int(config.TTLRefreshToken().Seconds()))
 
 	// Set token
 	auth_service.SetJWTCookie(c, token, int(config.TTLJWTToken().Seconds()))
@@ -350,8 +356,16 @@ func (h *RESTHandler) Login(c *gin.Context) {
 }
 
 func (h *RESTHandler) Logout(c *gin.Context) {
-	// TODO: expire/invalidate refresh token
+	// Force expire refresh token
+	userID := auth_service.Auth(c)
+	tx, err := database_config.DB(nil)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+	} else {
+		auth_service.ForceExpireRefreshToken(c, tx, userID)
+	}
 
-	// Expire cookie
-	auth_service.ExpireAuthCookie(c)
+	// Expire cookies
+	auth_service.ExpireJWTCookie(c)
+	auth_service.ExpireRefreshTokenCookie(c)
 }

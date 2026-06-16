@@ -10,10 +10,12 @@ func IsDev() bool {
 }
 
 func TTLJWTToken() time.Duration {
+	return 30 * time.Second
 	return 15 * time.Minute
 }
 
 func TTLRefreshToken() time.Duration {
+	return 60 * time.Second
 	return 24 * time.Hour
 }
 

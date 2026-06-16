@@ -6,6 +6,7 @@ import (
 	"qolboard-api/config"
 	model "qolboard-api/models"
 	service "qolboard-api/services"
+	"qolboard-api/services/hashing"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -44,7 +45,7 @@ func SetJWTCookie(c *gin.Context, token string, expiresIn int) {
 	service.SetCookie(c, "qolboard_jwt", token, expiresIn, "/")
 }
 
-func ExrireJWTCookie(c *gin.Context) {
+func ExpireJWTCookie(c *gin.Context) {
 	service.SetCookie(c, "qolboard_jwt", "", 0, "/") // Expire jwt cookie
 }
 
@@ -52,8 +53,26 @@ func SetRefreshTokenCookie(c *gin.Context, token string, expiresIn int) {
 	service.SetCookie(c, "qolboard_refresh_token", token, expiresIn, "/")
 }
 
-func ExrireRefreshTokenCookie(c *gin.Context) {
+func ExpireRefreshTokenCookie(c *gin.Context) {
 	service.SetCookie(c, "qolboard_refresh_token", "", 0, "/") // Expire refresh token cookie
+}
+
+func GetJWTCookie(c *gin.Context) (string, error) {
+	token, err := c.Cookie("qolboard_jwt")
+	if err != nil {
+		return "", fmt.Errorf("failed to get jwt cookie: %w", err)
+	}
+
+	return token, nil
+}
+
+func GetRefreshTokenCookie(c *gin.Context) (string, error) {
+	token, err := c.Cookie("qolboard_refresh_token")
+	if err != nil {
+		return "", fmt.Errorf("failed to get refresh token cookie: %w", err)
+	}
+
+	return token, nil
 }
 
 func ParseJWT(token string) (*Claims, error) {
@@ -73,7 +92,8 @@ func ParseJWT(token string) (*Claims, error) {
 	withIssuer := jwt.WithIssuer(iss)
 	verifiedToken, err := jwt.ParseWithClaims(token, claims, keyfunc, withIssuer)
 	if err != nil {
-		return nil, fmt.Errorf("error verifying token: %w", err)
+		claims, _ := verifiedToken.Claims.(*Claims)
+		return claims, fmt.Errorf("error verifying token: %w", err)
 	}
 
 	// Ensure token is valid, and we can get claims
@@ -84,7 +104,7 @@ func ParseJWT(token string) (*Claims, error) {
 	return claims, nil
 }
 
-func IssueJWT(user model.User) (string, error) {
+func IssueJWT(userID string) (string, error) {
 	iss := os.Getenv("API_HOST")
 	now := time.Now()
 	iat := jwt.NewNumericDate(now)
@@ -92,7 +112,7 @@ func IssueJWT(user model.User) (string, error) {
 	claims := &Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    iss,
-			Subject:   user.Id,
+			Subject:   userID,
 			IssuedAt:  iat,
 			ExpiresAt: exp,
 		},
@@ -107,4 +127,69 @@ func IssueJWT(user model.User) (string, error) {
 	}
 
 	return token, nil
+}
+
+func IssueRefreshToken(tx *sqlx.Tx, userID string) (string, error) {
+	token, err := service.GenerateCode(128)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	hashed := hashing.Sha256(token)
+
+	urt := model.UserRefreshToken{
+		UserID:       userID,
+		RefreshToken: hashed,
+	}
+
+	err = urt.Create(tx)
+	if err != nil {
+		return "", fmt.Errorf("error creating user refresh token: %w", err)
+	}
+
+	return token, nil
+}
+
+func ForceExpireRefreshToken(c *gin.Context, tx *sqlx.Tx, userID string) error {
+	token, err := GetRefreshTokenCookie(c)
+	if err != nil {
+		return fmt.Errorf("failed to get refresh token cookie: %w", err)
+	}
+
+	urt := model.UserRefreshToken{
+		UserID:       userID,
+		RefreshToken: token,
+	}
+
+	err = urt.DeleteByRefreshToken(tx)
+	if err != nil {
+		return fmt.Errorf("failed to delete refresh token: %w", err)
+	}
+
+	return nil
+}
+
+func ValidateRefreshToken(c *gin.Context, tx *sqlx.Tx, userID string) error {
+	token, err := GetRefreshTokenCookie(c)
+	if err != nil {
+		return fmt.Errorf("failed to get refresh token cookie: %w", err)
+	}
+
+	urt := model.UserRefreshToken{
+		UserID:       userID,
+		RefreshToken: token,
+	}
+
+	err = urt.FindByRefreshToken(tx)
+	if err != nil {
+		return fmt.Errorf("failed to find refresh token: %w", err)
+	}
+
+	now := time.Now()
+
+	if urt.CreatedAt.Add(config.TTLRefreshToken()).Before(now) {
+		return fmt.Errorf("refresh token expired")
+	}
+
+	return nil
 }
