@@ -406,6 +406,15 @@ func (h *RESTHandler) Refresh(c *gin.Context) {
 		return
 	}
 
+	// Is it too soon to attempt a refresh?
+	now := time.Now()
+	allowRefresPercBeforeEnd := time.Duration(float64(config.TTLJWTToken()) * 0.9)
+	allowRefreshAfter := urt.CreatedAt.Add(allowRefresPercBeforeEnd)
+	if now.Before(allowRefreshAfter) {
+		error_service.PublicError(c, "too soon", http.StatusTooManyRequests, "refresh_token", "", "user")
+		return
+	}
+
 	// Refresh token is valid, so issue new JWT and refresh token
 	auth_service.ForceExpireRefreshTokenFamily(c, tx, urt.RefreshToken)
 
