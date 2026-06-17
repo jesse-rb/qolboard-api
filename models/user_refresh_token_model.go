@@ -36,14 +36,14 @@ func (urt UserRefreshToken) GetForeignKey(related relations_service.IHasRelation
 }
 
 func init() {
-	// Has one user
-	relations_service.HasOne(
+	// Belongs to
+	relations_service.BelongsTo(
 		"user",
 		UserRefreshTokenRelations,
 		"SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL",
 		"SELECT * FROM users WHERE id IN (?) AND deleted_at IS NULL",
 		func(urt UserRefreshToken, u User) UserRefreshToken { urt.User = &u; return urt },
-		func(urt UserRefreshToken) any { return urt.ID },
+		func(urt UserRefreshToken) any { return urt.UserID },
 		func(u User) any { return u.Id },
 	)
 }

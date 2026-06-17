@@ -170,19 +170,19 @@ func (h *RESTHandler) VerifyEmail(c *gin.Context) {
 	}
 
 	// If email has been verified, we can log the user in automatically
-	jwt_token, err := auth_service.IssueJWT(user.Id)
+	JWTToken, err := auth_service.IssueJWT(user.Id)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}
-	refresh_token, err := auth_service.IssueRefreshToken(tx, user.Id, "")
+	refreshToken, err := auth_service.IssueRefreshToken(tx, user.Id, "")
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}
 
-	auth_service.SetJWTCookie(c, jwt_token, int(config.TTLJWTToken().Seconds()))
-	auth_service.SetRefreshTokenCookie(c, refresh_token, int(config.TTLRefreshToken().Seconds()))
+	auth_service.SetJWTCookie(c, JWTToken, int(config.TTLJWTToken().Seconds()))
+	auth_service.SetRefreshTokenCookie(c, refreshToken, int(config.TTLRefreshToken().Seconds()))
 
 	// Redirect
 	appHost := os.Getenv("APP_HOST")
@@ -325,13 +325,13 @@ func (h *RESTHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Issue JWT token
-	token, err := auth_service.IssueJWT(user.Id)
+	// Issue JWT JWTToken
+	JWTToken, err := auth_service.IssueJWT(user.Id)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}
-	refresh_token, err := auth_service.IssueRefreshToken(tx, user.Id, "")
+	refreshToken, err := auth_service.IssueRefreshToken(tx, user.Id, "")
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
@@ -344,8 +344,8 @@ func (h *RESTHandler) Login(c *gin.Context) {
 		return
 	}
 
-	auth_service.SetRefreshTokenCookie(c, refresh_token, int(config.TTLRefreshToken().Seconds()))
-	auth_service.SetJWTCookie(c, token, int(config.TTLJWTToken().Seconds()))
+	auth_service.SetRefreshTokenCookie(c, refreshToken, int(config.TTLRefreshToken().Seconds()))
+	auth_service.SetJWTCookie(c, JWTToken, int(config.TTLJWTToken().Seconds()))
 
 	// Redirect to
 	appHost := os.Getenv("APP_HOST")
@@ -386,19 +386,22 @@ func (h *RESTHandler) Logout(c *gin.Context) {
 func (h *RESTHandler) Refresh(c *gin.Context) {
 	logging.LogDebug("auth_controller", "attempting to refresh JWT token", nil)
 
+	// Get refresh token from cookie
 	refreshToken, err := auth_service.GetRefreshTokenCookie(c)
 	if err != nil {
 		error_service.PublicError(c, "invalid token", http.StatusUnauthorized, "refresh_token", "", "user")
 		return
 	}
 
+	// Open DB transaction
 	tx, err := database_config.DB(nil)
+	defer database.StandardDeferRollback(tx)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
 	}
-	defer database.StandardDeferRollback(tx)
 
+	// Is refresh token valid?
 	urt, err := auth_service.ValidateRefreshToken(c, tx, refreshToken)
 	if err != nil || urt == nil {
 		logging.LogDebug("auth_controller", "error validating refresh token", err)
@@ -415,7 +418,7 @@ func (h *RESTHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	// Refresh token is valid, so issue new JWT and refresh token
+	// Refresh token is valid, so expire refresh token family and issue new JWT and refresh tokens
 	auth_service.ForceExpireRefreshTokenFamily(c, tx, urt.RefreshToken)
 
 	newJWTToken, err := auth_service.IssueJWT(urt.UserID)
@@ -436,6 +439,7 @@ func (h *RESTHandler) Refresh(c *gin.Context) {
 		return
 	}
 
+	// Set token cookies
 	auth_service.SetJWTCookie(c, newJWTToken, int(config.TTLJWTToken().Seconds()))
 	auth_service.SetRefreshTokenCookie(c, newRefreshToken, int(config.TTLRefreshToken().Seconds()))
 }
