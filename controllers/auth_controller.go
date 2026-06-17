@@ -325,7 +325,7 @@ func (h *RESTHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Issue JWT JWTToken
+	// Issue JWT and refresh tokens
 	JWTToken, err := auth_service.IssueJWT(user.Id)
 	if err != nil {
 		error_service.InternalError(c, err.Error())
