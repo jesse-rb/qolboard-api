@@ -21,6 +21,7 @@ type User struct {
 	CreatedAt                string               `json:"created_at" db:"created_at"`
 	UpdatedAt                string               `json:"updated_at" db:"updated_at"`
 	DeletedAt                *string              `json:"deleted_at" db:"deleted_at"`
+	UserRefreshTokens        []UserRefreshToken   `json:"user_refresh_tokens"`
 	Canvases                 []Canvas             `json:"canvases"`
 	CanvasSharedAccesses     []CanvasSharedAccess `json:"canvas_shared_accesses"`
 }
@@ -41,6 +42,17 @@ func (u User) GetForeignKey(related relations_service.IHasRelations) any {
 }
 
 func init() {
+	// Has many user refresh tokens
+	relations_service.HasMany(
+		"user_refresh_tokens",
+		UserRelations,
+		"SELECT * FROM user_refresh_tokens WHERE user_id = $1 AND deleted_at IS NULL",
+		"SELECT * FROM users WHERE user_id IN (?) AND deleted_at IS NULL",
+		func(u User, urts []UserRefreshToken) User { u.UserRefreshTokens = urts; return u },
+		func(u User) any { return u.Id },
+		func(urt UserRefreshToken) any { return urt.UserID },
+	)
+
 	// HasMany Canvases
 	relations_service.HasMany(
 		"canvases",

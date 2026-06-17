@@ -13,6 +13,10 @@ func TTLJWTToken() time.Duration {
 	return 15 * time.Minute
 }
 
+func TTLRefreshToken() time.Duration {
+	return 24 * time.Hour
+}
+
 func TTLLoginOTP() time.Duration {
 	return 5 * time.Minute
 }

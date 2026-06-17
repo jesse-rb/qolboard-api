@@ -11,22 +11,24 @@ import (
 
 // Authenticate middleware
 func Run(c *gin.Context) {
-	token, err := c.Cookie("qolboard_jwt")
+	unauthorized := false
+
+	token, err := auth_service.GetJWTCookie(c)
 	if err != nil {
-		error_service.PublicError(c, "Unauthorized", http.StatusUnauthorized, "", "", "user")
-		c.Abort()
-		return
+		unauthorized = true
 	}
 
 	if token == "" {
-		error_service.PublicError(c, "Unauthorized", http.StatusUnauthorized, "", "", "user")
-		c.Abort()
-		return
+		unauthorized = true
 	}
 
 	claims, err := auth_service.ParseJWT(token)
 	if err != nil {
-		logging.LogInfo("AuthMiddleware", "Error parsing token", err)
+		unauthorized = true
+		logging.LogDebug("AuthMiddleware", "Error parsing token", err)
+	}
+
+	if unauthorized {
 		error_service.PublicError(c, "Unauthorized", http.StatusUnauthorized, "", "", "user")
 		c.Abort()
 		return
