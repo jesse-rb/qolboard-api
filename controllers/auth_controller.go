@@ -232,6 +232,7 @@ func (h *RESTHandler) RequestOTP(c *gin.Context) {
 	now := time.Now()
 	if user.LoginOTPIAT != nil && user.LoginOTPIAT.Add(config.RateLimitRequestOTP()).After(now) {
 		error_service.PublicError(c, fmt.Sprintf("too soon, please wait %s between retries", config.RateLimitRequestOTP().String()), http.StatusTooManyRequests, "email", data.Email, "user")
+		return
 	}
 
 	// Generate OTP
