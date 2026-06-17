@@ -2,12 +2,14 @@
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS "public"."user_refresh_tokens"(
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    "family_id" uuid NOT NULL DEFAULT gen_random_uuid(),
     "user_id" "uuid" NOT NULL REFERENCES "public"."users",
     "refresh_token" VARCHAR NOT NULL UNIQUE,
     "created_at" timestamp NOT NULL DEFAULT now(),
     "updated_at" timestamp NOT NULL DEFAULT now(),
     "deleted_at" timestamp DEFAULT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_user_refresh_tokens_family_id ON user_refresh_tokens (family_id);
 -- +goose StatementEnd
 
 -- +goose Down

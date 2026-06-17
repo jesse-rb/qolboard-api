@@ -129,7 +129,7 @@ func IssueJWT(userID string) (string, error) {
 	return token, nil
 }
 
-func IssueRefreshToken(tx *sqlx.Tx, userID string) (string, error) {
+func IssueRefreshToken(tx *sqlx.Tx, userID string, familyID string) (string, error) {
 	token, err := service.GenerateCode(128)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate refresh token: %w", err)
@@ -140,6 +140,7 @@ func IssueRefreshToken(tx *sqlx.Tx, userID string) (string, error) {
 	urt := model.UserRefreshToken{
 		UserID:       userID,
 		RefreshToken: hashed,
+		FamilyID:     familyID,
 	}
 
 	err = urt.Create(tx)
@@ -169,10 +170,10 @@ func ForceExpireRefreshToken(c *gin.Context, tx *sqlx.Tx, userID string) error {
 	return nil
 }
 
-func ValidateRefreshToken(c *gin.Context, tx *sqlx.Tx, userID string) error {
+func ValidateRefreshToken(c *gin.Context, tx *sqlx.Tx, userID string) (string, error) {
 	token, err := GetRefreshTokenCookie(c)
 	if err != nil {
-		return fmt.Errorf("failed to get refresh token cookie: %w", err)
+		return "", fmt.Errorf("failed to get refresh token cookie: %w", err)
 	}
 
 	urt := model.UserRefreshToken{
@@ -182,14 +183,27 @@ func ValidateRefreshToken(c *gin.Context, tx *sqlx.Tx, userID string) error {
 
 	err = urt.FindByRefreshToken(tx)
 	if err != nil {
-		return fmt.Errorf("failed to find refresh token: %w", err)
+		return "", fmt.Errorf("failed to find refresh token: %w", err)
 	}
 
+	invalid := false
+
+	// Is refresh token force expired?
+	if urt.DeletedAt == nil {
+		invalid = true
+	}
+
+	// Is refresh token expired
 	now := time.Now()
-
 	if urt.CreatedAt.Add(config.TTLRefreshToken()).Before(now) {
-		return fmt.Errorf("refresh token expired")
+		invalid = true
 	}
 
-	return nil
+	if invalid {
+		// Force expire entire refresh token family, if an invalid token was attempted to be used
+		urt.DeleteByFamilyID(tx)
+		return "", fmt.Errorf("invalid refresh token")
+	}
+
+	return urt.FamilyID, nil
 }

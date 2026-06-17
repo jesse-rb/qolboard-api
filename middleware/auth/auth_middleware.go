@@ -30,9 +30,10 @@ func Run(c *gin.Context) {
 
 	claims, err := auth_service.ParseJWT(token)
 	if err != nil {
+		logging.LogDebug("AuthMiddleware", "token not valid", claims)
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			// If the token is expired but cryptographically valid, see if we can refresh the token
-			logging.LogInfo("AuthMiddleware", "jwt token is expired, attempting refresh", nil)
+			logging.LogDebug("AuthMiddleware", "jwt token is expired, attempting refresh", nil)
 
 			tx, err := database_config.DB(nil)
 			if err != nil {
@@ -44,12 +45,12 @@ func Run(c *gin.Context) {
 
 			userID := claims.Subject
 
-			err = auth_service.ValidateRefreshToken(c, tx, userID)
+			familyID, err := auth_service.ValidateRefreshToken(c, tx, userID)
 			if err == nil {
 				// Refresh token is valid, so issue new JWT and refresh token
 				auth_service.ForceExpireRefreshToken(c, tx, userID)
 				auth_service.IssueJWT(userID)
-				auth_service.IssueRefreshToken(tx, userID)
+				auth_service.IssueRefreshToken(tx, userID, familyID)
 			}
 		}
 

@@ -175,7 +175,7 @@ func (h *RESTHandler) VerifyEmail(c *gin.Context) {
 		error_service.InternalError(c, err.Error())
 		return
 	}
-	refresh_token, err := auth_service.IssueRefreshToken(tx, user.Id)
+	refresh_token, err := auth_service.IssueRefreshToken(tx, user.Id, "")
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
@@ -331,7 +331,7 @@ func (h *RESTHandler) Login(c *gin.Context) {
 		error_service.InternalError(c, err.Error())
 		return
 	}
-	refresh_token, err := auth_service.IssueRefreshToken(tx, user.Id)
+	refresh_token, err := auth_service.IssueRefreshToken(tx, user.Id, "")
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
