@@ -42,9 +42,9 @@ func (u User) GetForeignKey(related relations_service.IHasRelations) any {
 }
 
 func init() {
-	// Belongs to user refresh token
+	// Has many user refresh tokens
 	relations_service.HasMany(
-		"user_refresh_token",
+		"user_refresh_tokens",
 		UserRelations,
 		"SELECT * FROM user_refresh_tokens WHERE user_id = $1 AND deleted_at IS NULL",
 		"SELECT * FROM users WHERE user_id IN (?) AND deleted_at IS NULL",
