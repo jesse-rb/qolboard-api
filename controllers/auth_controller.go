@@ -345,8 +345,6 @@ func (h *RESTHandler) Login(c *gin.Context) {
 	}
 
 	auth_service.SetRefreshTokenCookie(c, refresh_token, int(config.TTLRefreshToken().Seconds()))
-
-	// Set token
 	auth_service.SetJWTCookie(c, token, int(config.TTLJWTToken().Seconds()))
 
 	// Redirect to
@@ -356,16 +354,79 @@ func (h *RESTHandler) Login(c *gin.Context) {
 }
 
 func (h *RESTHandler) Logout(c *gin.Context) {
-	// Force expire refresh token
-	userID := auth_service.Auth(c)
-	tx, err := database_config.DB(nil)
+	// Force expire entire refresh token family
+	refreshToken, err := auth_service.GetRefreshTokenCookie(c)
 	if err != nil {
-		error_service.InternalError(c, err.Error())
+		// No refresh token supplied
+		logging.LogDebug("auth_controller", "logout without refresh token supplied", nil)
 	} else {
-		auth_service.ForceExpireRefreshToken(c, tx, userID)
+		tx, err := database_config.DB(nil)
+		defer database.StandardDeferRollback(tx)
+		if err != nil {
+			error_service.InternalError(c, err.Error())
+		} else {
+			err := auth_service.ForceExpireRefreshTokenFamily(c, tx, refreshToken)
+			if err != nil {
+				error_service.InternalError(c, err.Error())
+			}
+		}
+
+		// If all went well, commit tx
+		err = tx.Commit()
+		if err != nil {
+			error_service.InternalError(c, err.Error())
+		}
 	}
 
 	// Expire cookies
 	auth_service.ExpireJWTCookie(c)
 	auth_service.ExpireRefreshTokenCookie(c)
+}
+
+func (h *RESTHandler) Refresh(c *gin.Context) {
+	logging.LogDebug("auth_controller", "attempting to refresh JWT token", nil)
+
+	refreshToken, err := auth_service.GetRefreshTokenCookie(c)
+	if err != nil {
+		error_service.PublicError(c, "invalid token", http.StatusUnauthorized, "refresh_token", "", "user")
+		return
+	}
+
+	tx, err := database_config.DB(nil)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+	defer database.StandardDeferRollback(tx)
+
+	urt, err := auth_service.ValidateRefreshToken(c, tx, refreshToken)
+	if err != nil || urt == nil {
+		logging.LogDebug("auth_controller", "error validating refresh token", err)
+		error_service.PublicError(c, "invalid token", http.StatusUnauthorized, "refresh_token", "", "user")
+		return
+	}
+
+	// Refresh token is valid, so issue new JWT and refresh token
+	auth_service.ForceExpireRefreshTokenFamily(c, tx, urt.RefreshToken)
+
+	newJWTToken, err := auth_service.IssueJWT(urt.UserID)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+	newRefreshToken, err := auth_service.IssueRefreshToken(tx, urt.UserID, urt.FamilyID)
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
+	// If all went well, commit tx
+	err = tx.Commit()
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
+	auth_service.SetJWTCookie(c, newJWTToken, int(config.TTLJWTToken().Seconds()))
+	auth_service.SetRefreshTokenCookie(c, newRefreshToken, int(config.TTLRefreshToken().Seconds()))
 }

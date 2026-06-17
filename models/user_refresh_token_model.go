@@ -11,7 +11,7 @@ import (
 
 type UserRefreshToken struct {
 	ID           string     `json:"id" db:"id"`
-	FamilyID     string     `json:"family_id" db:":family_id"`
+	FamilyID     string     `json:"family_id" db:"family_id"`
 	UserID       string     `json:"user_id" db:"user_id"`
 	RefreshToken string     `json:"refresh_token" db:"refresh_token"`
 	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
@@ -75,7 +75,7 @@ func (urt *UserRefreshToken) Create(tx *sqlx.Tx) error {
 		paramInserts = append(paramInserts, fmt.Sprintf("$%d", i+1))
 	}
 
-	_, err := fmt.Fprintf(&stmt, "INSERT INTO user_refresh_tokens(%s) VALUES(%s)", strings.Join(paramNames, ", "), strings.Join(paramInserts, ", "))
+	_, err := fmt.Fprintf(&stmt, "INSERT INTO user_refresh_tokens(%s) VALUES(%s) RETURNING *", strings.Join(paramNames, ", "), strings.Join(paramInserts, ", "))
 	if err != nil {
 		return fmt.Errorf("failed to write string: %w", err)
 	}
@@ -88,17 +88,8 @@ func (urt *UserRefreshToken) Create(tx *sqlx.Tx) error {
 	return nil
 }
 
-func (urt *UserRefreshToken) DeleteByRefreshToken(tx *sqlx.Tx) error {
-	err := tx.Get(urt, "UPDATE user_refresh_tokens SET deleted_at = NOW() WHERE refresh_token = $1 AND user_id = $2 AND deleted_at IS NULL RETURNING *", urt.RefreshToken, urt.UserID)
-	if err != nil {
-		return fmt.Errorf("failed to create user refresh token: %w", err)
-	}
-
-	return nil
-}
-
 func (urt *UserRefreshToken) DeleteByFamilyID(tx *sqlx.Tx) error {
-	err := tx.Get(urt, "UPDATE user_refresh_tokens SET deleted_at = NOW() WHERE family_id = $1 AND user_id = $2 AND deleted_at IS NULL RETURNING *", urt.FamilyID, urt.UserID)
+	err := tx.Get(urt, "UPDATE user_refresh_tokens SET deleted_at = NOW() WHERE family_id = $1 AND deleted_at IS NULL RETURNING *", urt.FamilyID)
 	if err != nil {
 		return fmt.Errorf("failed to create user refresh token: %w", err)
 	}
@@ -106,10 +97,11 @@ func (urt *UserRefreshToken) DeleteByFamilyID(tx *sqlx.Tx) error {
 	return nil
 }
 
-func (urt *UserRefreshToken) FindByRefreshToken(tx *sqlx.Tx) error {
-	err := tx.Get(urt, "SELECT * FROM user_refresh_tokens WHERE refresh_token = $1 AND user_id = $2 NULL RETURNING *")
+func FindUserFreshTokenByRefreshToken(tx *sqlx.Tx, refreshToken string) (*UserRefreshToken, error) {
+	urt := UserRefreshToken{}
+	err := tx.Get(&urt, "SELECT * FROM user_refresh_tokens WHERE refresh_token = $1", refreshToken)
 	if err != nil {
-		return fmt.Errorf("failed to find user refresh token: %w", err)
+		return nil, fmt.Errorf("failed to find user refresh token: %w", err)
 	}
-	return nil
+	return &urt, nil
 }

@@ -91,6 +91,7 @@ func main() {
 		rAuth.GET("/verify", restHandler.VerifyEmail)
 		rAuth.POST("/request_otp", restHandler.RequestOTP)
 		rAuth.POST("/login", restHandler.Login)
+		rAuth.POST("/refresh", restHandler.Refresh)
 	}
 
 	// Define authenticated routes

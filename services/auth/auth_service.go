@@ -92,8 +92,7 @@ func ParseJWT(token string) (*Claims, error) {
 	withIssuer := jwt.WithIssuer(iss)
 	verifiedToken, err := jwt.ParseWithClaims(token, claims, keyfunc, withIssuer)
 	if err != nil {
-		claims, _ := verifiedToken.Claims.(*Claims)
-		return claims, fmt.Errorf("error verifying token: %w", err)
+		return nil, fmt.Errorf("error verifying token: %w", err)
 	}
 
 	// Ensure token is valid, and we can get claims
@@ -151,18 +150,15 @@ func IssueRefreshToken(tx *sqlx.Tx, userID string, familyID string) (string, err
 	return token, nil
 }
 
-func ForceExpireRefreshToken(c *gin.Context, tx *sqlx.Tx, userID string) error {
-	token, err := GetRefreshTokenCookie(c)
-	if err != nil {
-		return fmt.Errorf("failed to get refresh token cookie: %w", err)
+func ForceExpireRefreshTokenFamily(c *gin.Context, tx *sqlx.Tx, refreshToken string) error {
+	hashed := hashing.Sha256(refreshToken)
+
+	urt, err := model.FindUserFreshTokenByRefreshToken(tx, hashed)
+	if err != nil || urt == nil {
+		return fmt.Errorf("failed to find refresh token: %w", err)
 	}
 
-	urt := model.UserRefreshToken{
-		UserID:       userID,
-		RefreshToken: token,
-	}
-
-	err = urt.DeleteByRefreshToken(tx)
+	err = urt.DeleteByFamilyID(tx)
 	if err != nil {
 		return fmt.Errorf("failed to delete refresh token: %w", err)
 	}
@@ -170,26 +166,19 @@ func ForceExpireRefreshToken(c *gin.Context, tx *sqlx.Tx, userID string) error {
 	return nil
 }
 
-func ValidateRefreshToken(c *gin.Context, tx *sqlx.Tx, userID string) (string, error) {
-	token, err := GetRefreshTokenCookie(c)
-	if err != nil {
-		return "", fmt.Errorf("failed to get refresh token cookie: %w", err)
+func ValidateRefreshToken(c *gin.Context, tx *sqlx.Tx, refreshToken string) (*model.UserRefreshToken, error) {
+	hashed := hashing.Sha256(refreshToken)
+
+	urt, err := model.FindUserFreshTokenByRefreshToken(tx, hashed)
+	if err != nil || urt == nil {
+		return nil, fmt.Errorf("failed to find refresh token: %w", err)
 	}
 
-	urt := model.UserRefreshToken{
-		UserID:       userID,
-		RefreshToken: token,
-	}
-
-	err = urt.FindByRefreshToken(tx)
-	if err != nil {
-		return "", fmt.Errorf("failed to find refresh token: %w", err)
-	}
-
+	// We have the refresh token on record, now check if it's valid
 	invalid := false
 
 	// Is refresh token force expired?
-	if urt.DeletedAt == nil {
+	if urt.DeletedAt != nil {
 		invalid = true
 	}
 
@@ -200,10 +189,14 @@ func ValidateRefreshToken(c *gin.Context, tx *sqlx.Tx, userID string) (string, e
 	}
 
 	if invalid {
-		// Force expire entire refresh token family, if an invalid token was attempted to be used
-		urt.DeleteByFamilyID(tx)
-		return "", fmt.Errorf("invalid refresh token")
+		// IF attempted to refresh with expired access token, we must force expire the entire Refresh
+		// token family, as this is a likely sign of a compromised refresh token
+		err := urt.DeleteByFamilyID(tx)
+		if err != nil {
+			return nil, fmt.Errorf("error deleting refresh token by family ID, %w", err)
+		}
+		return nil, fmt.Errorf("invalid refresh token")
 	}
 
-	return urt.FamilyID, nil
+	return urt, nil
 }
