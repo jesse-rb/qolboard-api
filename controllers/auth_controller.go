@@ -420,7 +420,7 @@ func (h *RESTHandler) Refresh(c *gin.Context) {
 	}
 
 	// Refresh token is valid, so expire refresh token family and issue new JWT and refresh tokens
-	auth_service.ForceExpireRefreshTokenFamily(c, tx, urt.RefreshToken)
+	auth_service.ForceExpireRefreshTokenFamily(c, tx, refreshToken)
 
 	newJWTToken, err := auth_service.IssueJWT(urt.UserID)
 	if err != nil {
