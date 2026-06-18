@@ -162,13 +162,6 @@ func (h *RESTHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	// If all went well, commit tx
-	err = tx.Commit()
-	if err != nil {
-		error_service.InternalError(c, err.Error())
-		return
-	}
-
 	// If email has been verified, we can log the user in automatically
 	JWTToken, err := auth_service.IssueJWT(user.Id)
 	if err != nil {
@@ -176,6 +169,13 @@ func (h *RESTHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 	refreshToken, err := auth_service.IssueRefreshToken(tx, user.Id, "")
+	if err != nil {
+		error_service.InternalError(c, err.Error())
+		return
+	}
+
+	// If all went well, commit tx
+	err = tx.Commit()
 	if err != nil {
 		error_service.InternalError(c, err.Error())
 		return
