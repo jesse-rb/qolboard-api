@@ -12,7 +12,7 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ./.env:/app/.env
+      - ./:/app/
   api:
     build: .
     ports:

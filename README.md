@@ -62,7 +62,7 @@ make adminer-down
 
 Run the Golang API:
 ```
-make local-api-run
+make api-run
 ```
 
 ## API design & architecture
