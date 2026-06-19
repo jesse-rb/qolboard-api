@@ -1,20 +1,28 @@
-local-adminer-up:
+RUN_GO = @docker compose run --service-ports --rm go
+
+go-cli:
+	@docker compose run --interactive --tty --rm go sh
+
+adminer-up:
 	docker-compose up adminer -d
 
-local-adminer-down:
+adminer-down:
 	docker-compose down adminer
 
-local-db-up:
+db-up:
 	docker-compose up db -d
 
-local-db-down:
+db-down:
 	docker-compose down db
 
-local-destroy:
+docker-compose-destroy:
 	docker-compose down -v
 
-migrations-up:
-	goose up
+migrations-status:
+	$(RUN_GO) go tool goose status
 
-local-api-up:
-	go run main.go
+migrations-up:
+	$(RUN_GO) go tool goose up
+
+local-api-run:
+	$(RUN_GO) go run main.go

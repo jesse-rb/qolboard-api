@@ -1,44 +1,70 @@
 # qolboard-api
 
-## Getting started with development
+## 1. Getting started with development
 
-**Database & Supabase**
+### 1.1 Docker & Docker Compose
 
-**Note:**
-The local supabase postgresql database setup is not required but is convenient, feel free to use any postgresql database setup that you prefer, you only need to set the connection details in the your `.env` file **HOWEVER**, this project does make use of **Supabase GoTrue API** for authentication, so it is still **recommended** to go through with the **local Subapase environment setup**.
-
-*REQUIREMENTS*
+This project uses docker to containerize the development environment (and one day production) for convenience. Everything required for local development is containerized, so you should not need to install anything other than docker and docker-compose binaries to get started.
 + Docker (If on macos, linux, or windows/wsl2 [Docker Desktop](https://www.docker.com/products/docker-desktop/) is a convenient way to to install docker and docker-compose binaries)
-+ [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started?platform=npx) (uses docker containers to setup a local supabase development environment) can be used conveniently through npx
 
-*STEPS*
-1. Start the local supabase environment (this will use the existing supabase configuration in `supabase` directory generated from the initial `npx supabase init` command) e.g.
-    
-    ```
-    npx supabase start
-    ```
+(optional) Destroy local containerized env (helpful to start with a clean slate):
+```
+make docker-compose-destroy
+```
 
-    Note the output of the above command to find `SUPABASE_...` and `DATABASE_...` values to environment variables (see `.env.example`) that need to be set in your local `.env` file (these will be needed if you would like the app to interact with the local supabase environment)
+### 1.2 Makefil
 
-2. You can access the local supabase environment dashboard on [localhost:54323](http://localhost:54323). run `npx supabase status` for a reminder of local supabase serviecs ports and secrets
+This project uses a Makefile for some convenient commands to get up and running, and for ongoing development.
 
-easy local testing supabase links:
-+ [supabase web dashboard](http://127.0.0.1:54323)
-+ [mock email service (Inbucket)](http://127.0.0.1:54324)
+### 1.3 env
 
-**Golang**
+A local `.env.example` file is provided, which should have the correct defaults for local development.
 
-*REQUIREMENTS*
-+ A running database to connect to
-+ A `.env` with environment variables that suits your development environment (KEEP EXCLUDED FROMN VERSION CONTROL)
+Set up .env:
+```
+cp .env.example .env
+```
 
-    Feel free to use the following command from the project root directory as a starting point for your `.env` file, the provided example `.env.example` (For `SUPABASE_...` and `DATABASE_...` env values see output of `npx supabase init` command documented above)
-    ```
-    cp .env.example .env
-    ```
+### 1.4 Database
 
-*STEPS*
-1. From the project root directory, run the following command to start the web app
-    ```
-    go run main.go
-    ```
+This project uses a postgres database. For convenience, the docker-compose file includes a postgers service which can be used for development.
+
+Start db:
+```
+make db-up
+```
+
+Stop db:
+```
+make db-down
+```
+
+Run DB migrations:
+```
+make migrations-up
+```
+
+Check DB migrations status:
+```
+make migrations-status
+```
+
+(optional) For convenience, the docker-compose also includes adminer (a convenient web based DB client), but you can use any db client.
+```
+make adminer-up
+```
+
+```
+make adminer-down
+```
+
+### 1.5 Golang API
+
+Run the Golang API:
+```
+make local-api-run
+```
+
+## API design & architecture
+
+...docs in progress
