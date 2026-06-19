@@ -1,1 +1,0 @@
-web: qolboard-api

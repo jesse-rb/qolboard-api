@@ -24,5 +24,5 @@ migrations-status:
 migrations-up:
 	$(RUN_GO) go tool goose up
 
-local-api-run:
+api-run:
 	$(RUN_GO) go run main.go

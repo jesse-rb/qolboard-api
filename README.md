@@ -62,9 +62,58 @@ make adminer-down
 
 Run the Golang API:
 ```
-make local-api-run
+make api-run
 ```
 
 ## API design & architecture
 
-...docs in progress
+### Requesting related resources
+
+This API uses a pattern which allows the client to request additional related resources via a `with[]=resourceA.resourceB` query param. (Similar to with GraphQL, batch loading resources is optimized to avoid N+1 query problems, and a maximum depth limit is enforced)
+
+e.g. requesting user with all their canvases, and canvases shared with them
+```
+GET /user?with[]=canvas_shared_accesses.canvas&with[]=canvases
+```
+
+### Responses
+
+Responses are mostly consistent. An `errors` array is always included, and can be empty if there are no specific errors.
+For endpoints that return data, if the request was successful then either a `data` object or array is included, depending on whether or not
+the data is a list of resources, or a single resource.
+
+Example error response:
+```
+{
+    "errors": [
+        {
+            "message": "Unauthorized",
+            "field": "",
+            "value": ""
+        }
+    ]
+}
+```
+
+Example successful response:
+```
+{
+    "data": {
+        "canvas_shared_accesses": null,
+        "canvases": [],
+        "email": "test@gmail.com",
+        "id": "b965790f-a11a-4cbf-a9c2-1f5763099de0"
+    },
+    "errors": []
+}
+```
+
+### Auth
+
+Outside of the websocket connection, this is a stateless API which uses JWT authentication, with refresh tokens which allow active users to remain authenticated without being interrupted too often.
+
+User registration and login is passwordless, users must verify their email via an email link, and users login via email one time passwords (OTP).
+
+### Email
+
+When running the API locally, any email that would ordinarily be sent in production is instead simply logged to stdout.

@@ -2,11 +2,18 @@
 package relations_service
 
 import (
+	"errors"
+	"fmt"
 	"qolboard-api/services/logging"
+	"strings"
 
 	"github.com/jesse-rb/imissphp-go"
 	"github.com/jmoiron/sqlx"
 )
+
+const maxDepth int = 3
+
+var ErrMaxDepthExceeded error = errors.New("max depth exceeded")
 
 type RelationRegistry struct {
 	Relations map[string]Relation
@@ -381,18 +388,26 @@ func (r RelationRegistry) LoadBatchRelations(tx *sqlx.Tx, models []IHasRelations
 	return nil
 }
 
-func HandleWithParams(with []string) map[string]any {
+func HandleWithParams(with []string) (map[string]any, error) {
 	withMap := make(map[string]any)
 	for _, w := range with {
+		depth := strings.Count(w, ".") + 1
+		if depth > maxDepth {
+			return nil, fmt.Errorf("max depth exceeded (%d/%d) while handling with params: %w", depth, maxDepth, ErrMaxDepthExceeded)
+		}
 		withMap[w] = nil // or some default value if needed
 	}
 	withMap = imissphp.UnFlattenMap(withMap)
-	return withMap
+	return withMap, nil
 }
 
 func Load[TModel IHasRelations](tx *sqlx.Tx, r RelationRegistry, model *TModel, with []string) error {
 	var iHasRelations IHasRelations = *model
-	err := r.LoadRelations(tx, &iHasRelations, HandleWithParams(with))
+	withMap, err := HandleWithParams(with)
+	if err != nil {
+		return fmt.Errorf("error handling with params while loading relations: %w", err)
+	}
+	err = r.LoadRelations(tx, &iHasRelations, withMap)
 
 	if tModel, ok := iHasRelations.(TModel); ok {
 		*model = tModel
@@ -405,7 +420,11 @@ func LoadBatch[TModel IHasRelations](tx *sqlx.Tx, r RelationRegistry, models []T
 	for i, t := range models {
 		iHasRelations[i] = t
 	}
-	err := r.LoadBatchRelations(tx, iHasRelations, HandleWithParams(with))
+	withMap, err := HandleWithParams(with)
+	if err != nil {
+		return fmt.Errorf("error handling with params while loading batch relations: %w", err)
+	}
+	err = r.LoadBatchRelations(tx, iHasRelations, withMap)
 
 	for i, rel := range iHasRelations {
 		if tModel, ok := rel.(TModel); ok {
