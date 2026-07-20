@@ -3,11 +3,13 @@ package cors_middleware
 import (
 	"net/http"
 	"os"
+	"qolboard-api/services/logging"
 
 	"github.com/gin-gonic/gin"
 )
 
 func Run(c *gin.Context) {
+	logging.LogDebug("[middleware]", "[cors]", nil)
 	var appHost string = os.Getenv("APP_HOST")
 
 	c.Writer.Header().Set("Access-Control-Allow-Origin", appHost)
@@ -16,7 +18,7 @@ func Run(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET, POST, PUT, DELETE")
 
 	if c.Request.Method == http.MethodOptions {
-		c.AbortWithStatus(http.StatusContinue)
+		c.AbortWithStatus(http.StatusNoContent)
 	}
 
 	c.Next()

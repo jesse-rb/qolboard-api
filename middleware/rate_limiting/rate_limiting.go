@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	auth_service "qolboard-api/services/auth"
+	error_service "qolboard-api/services/error"
 	"qolboard-api/services/logging"
 	"sync"
 	"time"
@@ -52,14 +53,12 @@ func (rl *RateLimiter) RateLimitClient(c *gin.Context, clientKey string, limiter
 	}
 	cl := rl.clients[clientKey]
 	rl.mu.Unlock()
-
 	if !cl.limiter.Allow() {
 		logging.LogInfo("rate_limiting_middleware", "rate limit exceeded", map[string]any{
 			"rate_limiter_name": rl.name,
 		})
-		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-			"error": "rate limit exceeded",
-		})
+		error_service.PublicError(c, "Rate limit exceeded.", http.StatusTooManyRequests, "", "", "")
+		c.Abort()
 	}
 }
 
@@ -72,6 +71,7 @@ func RunRateLimitIP(ctx context.Context) gin.HandlerFunc {
 	go rl.PeriodicClientsCleanup(ctx, 1*time.Minute)
 
 	return func(c *gin.Context) {
+		logging.LogDebug("[middleware]", "[rate_limiting]->[RunRateLimitIP]", nil)
 		ip := c.ClientIP()
 		rl.RateLimitClient(c, ip, rate.NewLimiter(rate.Every(1*time.Second), 10)) // max 10 requests per second for an ip
 		c.Next()
@@ -87,6 +87,7 @@ func RunRateLimitUser(ctx context.Context) gin.HandlerFunc {
 	go rl.PeriodicClientsCleanup(ctx, 1*time.Minute)
 
 	return func(c *gin.Context) {
+		logging.LogDebug("[middleware]", "[rate_limiting]->[RunRateLimitUser]", nil)
 		id := auth_service.Auth(c)
 		rl.RateLimitClient(c, id, rate.NewLimiter(rate.Every(1*time.Second), 10)) // max 10 requests per second for an authenticated user
 		c.Next()

@@ -3,6 +3,7 @@ package error_middleware
 import (
 	"net/http"
 	error_service "qolboard-api/services/error"
+	"qolboard-api/services/logging"
 	response_service "qolboard-api/services/response"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,7 @@ type Error struct {
 func Run(c *gin.Context) {
 	c.Next()
 
+	logging.LogDebug("[middleware]", "[error]", nil)
 	var errors []*error_service.Error = make([]*error_service.Error, 0)
 	var code int = 500
 
@@ -55,4 +57,3 @@ func Run(c *gin.Context) {
 		"errors": errors,
 	})
 }
-
