@@ -11,5 +11,7 @@ func Run(c *gin.Context) {
 	c.Next()
 
 	logging.LogDebug("[middleware]", "[response]", nil)
-	response_service.Response(c)
+	if !c.Writer.Written() || true {
+		response_service.Response(c)
+	}
 }
