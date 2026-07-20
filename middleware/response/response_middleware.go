@@ -1,6 +1,7 @@
 package response_middleware
 
 import (
+	"qolboard-api/services/logging"
 	response_service "qolboard-api/services/response"
 
 	"github.com/gin-gonic/gin"
@@ -9,5 +10,6 @@ import (
 func Run(c *gin.Context) {
 	c.Next()
 
+	logging.LogDebug("[middleware]", "[response]", nil)
 	response_service.Response(c)
 }
