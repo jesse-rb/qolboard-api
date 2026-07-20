@@ -81,7 +81,8 @@ func main() {
 
 	// Handle unregistered routes or methods
 	r.NoRoute(func(c *gin.Context) {
-		c.AbortWithError(404, fmt.Errorf("not found"))
+		error_service.PublicError(c, "Not found.", http.StatusNotFound, "", "", "")
+		c.Abort()
 	})
 	// Define unauthenticated routes routes
 	// Auth routes
