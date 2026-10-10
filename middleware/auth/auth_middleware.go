@@ -11,6 +11,7 @@ import (
 
 // Authenticate middleware
 func Run(c *gin.Context) {
+	logging.LogDebug("[middleware]", "[auth]", nil)
 	unauthorized := false
 
 	token, err := auth_service.GetJWTCookie(c)

@@ -107,8 +107,3 @@ func Response(c *gin.Context) {
 
 	c.JSON(code, response)
 }
-
-func Abort(c *gin.Context) {
-	Response(c)
-	panic(1)
-}

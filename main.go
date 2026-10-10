@@ -71,17 +71,18 @@ func main() {
 
 	// Global middleware
 
+	// Runs after (define in reverse). We define before other middleware so that these can execute even if other middleware call c.Abort()
+	r.Use(response_middleware.Run)
+	r.Use(error_middleware.Run)
+
 	// Runs before
 	r.Use(cors_middleware.Run)
 	r.Use(rate_limiting_middleware.RunRateLimitIP(ctx))
 
-	// Runs after (define in reverse)
-	r.Use(response_middleware.Run)
-	r.Use(error_middleware.Run)
-
 	// Handle unregistered routes or methods
 	r.NoRoute(func(c *gin.Context) {
-		c.AbortWithError(404, fmt.Errorf("not found"))
+		error_service.PublicError(c, "Not found.", http.StatusNotFound, "", "", "")
+		c.Abort()
 	})
 	// Define unauthenticated routes routes
 	// Auth routes
